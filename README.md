@@ -53,7 +53,7 @@ If you need to bypass the Riscrithm preprocessor and write raw RISC-V assembly, 
 ```text
 !!raw_block:
     li x1, 10
-    variable ^^ # This stays exactly as written!
+    foo ^^ # This stays exactly as written!
 
 ```
 
