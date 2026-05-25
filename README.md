@@ -235,3 +235,12 @@ When you compile with -o or --optimize, this second pass applies a lightweight A
 One of the best parts about Riscrithm is that the assembly file it spits out isn't an unreadable mess. The output .s file is automatically pretty-printed. Instructions inside blocks are neatly indented, labels sit flush to the margin, and the entire structure is completely human-readable.
 You can take the generated assembly and drop it directly into your hardware simulator, debugger, or desktop workflow without formatting a thing.
 Enjoy writing assembly without the headache. Happy coding!
+
+## 11. Roadmap: What’s Brewing for v1.1.0?
+​Let’s be real—building a language alone is an iterative grind. While my current two-pass compiler engine handles the heavy lifting by separating symbol resolution from code generation, I am already actively breaking things behind the scenes to bring you a much more robust DX.
+​Here is what I am cooking up for the v1.1.0 release:
+​Proper Module Imports: Right now, splitting code across multiple files is a headache. I am working on a dedicated import system so you can natively break your codebase down into clean, reusable modules without breaking the build pipeline.
+​Better Error Handling: I know the current compiler diagnostics can be... cryptic. The next minor release will introduce accurate line/column tracking and actual, human-readable error messages instead of just blowing up your terminal.
+​Guard Clauses & Simple if Statements: You shouldn't be forced to write an empty else block just to satisfy the parser. I am updating the AST to natively support standalone if branches for cleaner, early-return guard patterns.
+​Contribution & Feedback
+​Have ideas for the syntax, or found an edge-case bug that completely broke the register allocation? Open an issue or drop a PR. This project is built by a developer, for developers—let's make it better together.
