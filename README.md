@@ -236,7 +236,128 @@ One of the best parts about Riscrithm is that the assembly file it spits out isn
 You can take the generated assembly and drop it directly into your hardware simulator, debugger, or desktop workflow without formatting a thing.
 Enjoy writing assembly without the headache. Happy coding!
 
-## 11. Roadmap: What’s Brewing for v1.1.0?
+## 11. Compilation Showcase: Source → Assembly Transformation
+
+One of the most important aspects of Riscrithm is **predictability**.
+
+Every line of Riscrithm maps clearly to RISC-V assembly, and when optimization is enabled, transformations remain transparent and deterministic.
+
+This section demonstrates how a simple program is translated under different compiler modes.
+
+---
+
+### Source Program (Riscrithm)
+
+```text
+header default
+entrypoint main
+
+define foo = x1
+define bar = x2
+
+main:
+    load foo = 10
+    load bar = 5
+
+    load foo = 15
+    load foo = 15
+
+    move bar = 20
+    move bar = 20
+
+    wait
+
+    interrupt.u
+
+    foo swap bar
+    foo += bar
+    foo ++
+
+    foo = bar * 1
+
+    foo *= 2
+    bar /= 8
+
+    bar ^^
+
+    if foo == bar @equal else @not_equal
+
+equal:
+    halt
+
+not_equal:
+    trap
+```
+
+---
+
+### Generated Assembly (No Optimization)
+
+This is the direct lowering of Riscrithm into RISC-V assembly.
+
+```text
+.section .text
+.globl main
+main:
+   li x1, 10
+   li x2, 5
+   li x1, 15
+   li x1, 15
+   mv x2, 20
+   mv x2, 20
+   wfi
+   uret
+   xor x1, x1, x2
+   xor x2, x1, x2
+   xor x1, x1, x2
+   add x1, x1, x2
+   addi x1, x1, 1
+   mul x1, x2, 1
+   mul x1, x1, 2
+   div x2, x2, 8
+   xor x2, x2, x2
+   beq x1, x2, equal
+   j not_equal
+equal:
+   ecall
+not_equal:
+   ebreak
+```
+
+---
+
+### Generated Assembly (Optimized '-o')
+
+When the optimization flag is enabled, Riscrithm performs lightweight transformations.
+
+```text
+.section .text
+.globl main
+main:
+   li x1, 10
+   li x2, 5
+   li x1, 15
+   mv x2, 20
+   wfi
+   uret
+   xor x1, x1, x2
+   xor x2, x1, x2
+   xor x1, x1, x2
+   add x1, x1, x2
+   addi x1, x1, 1
+   mul x1, x2, 1
+   slli x1, x1, 1
+   srli x2, x2, 3
+   xor x2, x2, x2
+   beq x1, x2, equal
+   @not_equal
+equal:
+   ecall
+not_equal:
+   ebreak
+```
+
+## 12. Roadmap: What’s Brewing for v1.1.0?
 ​Let’s be real—building a language alone is an iterative grind. While my current two-pass compiler engine handles the heavy lifting by separating symbol resolution from code generation, I am already actively breaking things behind the scenes to bring you a much more robust DX.
 ​Here is what I am cooking up for the v1.1.0 release:
 ​Proper Module Imports: Right now, splitting code across multiple files is a headache. I am working on a dedicated import system so you can natively break your codebase down into clean, reusable modules without breaking the build pipeline.
