@@ -1,13 +1,11 @@
 # The Riscrithm Developer Manual
 
+Hey there. If you're looking at this, you are probably getting your hands dirty with **Riscrithm**, a high-level macro-assembly dialect that compiles straight down to pure RISC-V assembly. Think of it as a bridge between the readability of a high-level language and the raw, deterministic control of bare-metal hardware.
+Let's dive straight into how the compiler works, the syntax rules, and what's happening under the hood.
+
 ## Project Status Note (v1.1.0)
 Riscrithm v1.1.0 is currently live and stable, introducing modular imports, improved control flow, and early-stage optimization passes.
 I’m currently working on the Developer Manual updates to fully reflect all new features (especially from ... import, return flow, and label validation rules). There may be a short delay while documentation catches up with implementation.
-
----
-
-Hey there. If you're looking at this, you are probably getting your hands dirty with **Riscrithm**, a high-level macro-assembly dialect that compiles straight down to pure RISC-V assembly. Think of it as a bridge between the readability of a high-level language and the raw, deterministic control of bare-metal hardware.
-Let's dive straight into how the compiler works, the syntax rules, and what's happening under the hood.
 
 ## 1. The CLI
 To compile your source code, you'll use the riscrithm CLI tool. The syntax is straightforward:
