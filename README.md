@@ -1,72 +1,96 @@
-# The Riscrithm Developer Manual
-
+# The Riscrithm Developer Manual (v1.1)
 Hey there. If you're looking at this, you are probably getting your hands dirty with **Riscrithm**, a high-level macro-assembly dialect that compiles straight down to pure RISC-V assembly. Think of it as a bridge between the readability of a high-level language and the raw, deterministic control of bare-metal hardware.
+With the release of **v1.1**, the language has evolved significantly beyond its original release. I have expanded the feature set to introduce file modularity, cleaner control flow, much tighter compile-time error checks, and an enhanced optimization pass. This iteration provides all the core capabilities needed for an expressive developer experience without hiding what the underlying hardware is executing.
 Let's dive straight into how the compiler works, the syntax rules, and what's happening under the hood.
-
-## Project Status Note (v1.1.0)
-Riscrithm v1.1.0 is currently live and stable, introducing modular imports, improved control flow, and early-stage optimization passes.
-I’m currently working on the Developer Manual updates to fully reflect all new features (especially from ... import, return flow, and label validation rules). There may be a short delay while documentation catches up with implementation.
-
 ## 1. The CLI
-To compile your source code, you'll use the riscrithm CLI tool. The syntax is straightforward:
+To compile source code, use the riscrithm CLI tool. The syntax is straightforward:
 ```bash
 riscrithm "source_code_file" "assembly_target_file" [-o/--optimize]
 
 ```
- * **Source Code:** Your Riscrithm input file.
- * **Target File:** The generated .s assembly file. If this file doesn't exist, the compiler will create it for you on the fly.
- * **Optimization:** Pass -o or --optimize to enable the optimization sweep (more on the compiler architecture later).
-
-## 2. File Structure & Globals
-Every Riscrithm file must declare its target section and entrypoint at the very top. These, along with macro definitions, are the *only* lines allowed to exist completely unindented outside of a label block.
+ * **Source Code:** The Riscrithm input file.
+ * **Target File:** The generated .s assembly file. If this file doesn't exist, the compiler creates it on the fly.
+ * **Optimization:** Pass -o or --optimize to enable the comprehensive optimization sweep.
+## 2. File Structure, Globals & Module Imports
+Every Riscrithm file must declare its target section and entrypoint at the very top. These directives, alongside macro definitions and import statements, are the *only* lines allowed to exist completely unindented outside of a label block.
 ### Header and Entrypoint
- * **header <value>**: Sets the assembly section. For instance, header default translates to .section .text.
- * **entrypoint <symbol>**: Defines where the program starts. Passing entrypoint main translates to .globl main.
+ * header <value>: Sets the target assembly section. For instance, header default translates directly to .section .text.
+ * entrypoint <symbol>: Defines where the program starts execution. Passing entrypoint main translates to .globl main.
 ```text
 header default
 entrypoint main
 
 ```
+### Imports & Modular Files (New in v1.1)
+Riscrithm supports modular source files, making it simple to break projects down into reusable packages and utility libraries.
+> **Important Rule:** Imported modules and other secondary sub-files should not include a header or entrypoint directive, as they function strictly as modular components.
+> 
+ * **Global Import:** Use import to lazily drop an entire file's contents into the current compilation unit.
+   ```text
+   import "packages/display_utilities.txt"
+   
+   ```
+ * **Selective Import:** Use from ... import to pull only specific label symbols from another source file, avoiding global namespace pollution.
+   ```text
+   from "libraries/math_helpers.txt" import qux, quux
+   from "libraries/math_helpers.txt" import corge
+   
+   ```
 ### Definitions (Macros)
-You can define text-replacement macros using the define keyword. This is perfect for aliasing registers or creating single-line inline functions. Here are some classic developer examples:
+Text-replacement macros are declared using the define keyword. This is ideal for aliasing registers, creating constants, or establishing single-line inline code fragments.
 ```text
 define foo = x1
 define bar = x2
 define baz = x3
-define horseBattery = x4
-define apple = 10
-define orange = 20
+define qux = x4
+define quux = 10
+define corge = 20
 define clearFoo = foo ^^
 
 ```
-Whenever the parser sees foo, it swaps it with x1 *before* processing any actual logic.
+Whenever the parser encounters foo, it swaps it with x1 *before* processing any actual logical expressions.
 ### Comments
-Comments are written using the # symbol. The compiler strips out anything following a # on any line, so you can place them anywhere safely.
-
-## 3. Labels, Indentation, and Raw Blocks
-Riscrithm is strictly scoped via indentation.
+Comments are written using the # symbol. The compiler strips out anything following a # on any line, allowing safe inline documentation anywhere.
+## 3. Compiler Validation Passes & Error Checking (New in v1.1)
+Writing bare-metal assembly can be error-prone and tedious to debug. To catch structural bugs early, v1.1 introduces a strict compile-time validation sweep before generating code. The compiler checks for the following anomalies and halts compilation with descriptive errors if found:
+ * **Missing Header:** The main file must include a header directive at the top, or the assembly target cannot be initialized.
+ * **Invalid Entrypoint:** The symbol passed to the entrypoint directive must resolve to a valid, defined label within the codebase.
+ * **Global Duplicate Labels:** The compiler scans all unified modules and compilation units to guarantee no label is declared more than once.
+ * **Undefined Jumps and Branches:** Any jump or branch targeting a label that doesn't exist anywhere in the source or imported tree triggers an instant compilation failure.
+ * **Unreachable Code:** The compiler performs basic control-flow analysis to check for dead code, such as placing instructions directly after a return statement within the same block before a new label breaks scope.
+ * **Duplicate File Imports:** Importing the exact same file path multiple times across your project is intercepted and flagged.
+ * **Duplicate Label Imports:** Attempting to import the same specific label token multiple times via from ... import statements causes a syntax validation failure.
+## 4. Labels, Indentation, and Raw Blocks
+Riscrithm enforces strict layout scoping via indentation.
 ### Standard Labels
-Labels define your execution blocks and must end with a colon. They **must not** have any indentation.
-Conversely, every instruction inside a label **must** be indented (spaces or tabs). If you leave an instruction unindented, the compiler will throw a SyntaxError.
+Labels define execution blocks, must end with a colon, and **must not** have any indentation. Conversely, every instruction inside a label block **must** be indented with spaces or tabs. Leaving an instruction unindented triggers a SyntaxError.
 ```text
 main:
-    load foo = apple
+    load foo = quux
     move bar = foo
 
 ```
 ### Raw Assembly Labels (!!)
-If you need to bypass the Riscrithm preprocessor and write raw RISC-V assembly, prefix your label with !!. The compiler strips the exclamation marks but passes everything inside that block completely untouched. Macros and shorthands will *not* expand here.
+To completely bypass the preprocessor and write raw RISC-V assembly, prefix your block label with !!. The compiler strips the exclamation marks but passes everything inside that block completely untouched. Macros and shorthands will *not* expand here.
 ```text
 !!raw_block:
     li x1, 10
-    foo ^^ # This stays exactly as written!
+    variable ^^ # This stays exactly as written!
 
 ```
+### Inline Raw Assembly (New in v1.1)
+If you need a single specialized hardware instruction without changing your entire block style, use the !! prefix inline inside an indented execution block:
+```text
+process_data:
+    load foo = 5
+    !!addi x1, x1, 10 # This line bypasses processing and prints raw
+    foo ++
 
-## 4. Core Features & Instructions
-Here is the meat of the language. Riscrithm maps readable statements directly to hardware instructions.
+```
+## 5. Core Features & Instructions
+Riscrithm maps expressive statements directly down to hardware-level instructions.
 ### System & Interrupt Controls
-Instead of remembering privilege-level opcodes, use explicit system calls:
+Instead of memorizing low-level privilege opcodes, use explicit system keywords:
 | Riscrithm | RISC-V Assembly | Description |
 |---|---|---|
 | interrupt.u | uret | User-mode trap return |
@@ -76,18 +100,212 @@ Instead of remembering privilege-level opcodes, use explicit system calls:
 | trap | ebreak | Debugger trap |
 | halt | ecall | System environment call / halt |
 | ... | nop | No-operation (ellipsis) |
+```text
+handle_system_events:
+    wait
+    interrupt.u
 
-## 5. Naming Conventions
-Let’s talk about code style. To keep your Riscrithm source files readable and consistent, the compiler expects (and highly encourages) a clean split in how you name your identifiers. Here is the naming convention breakdown:
- * **Variables & Registers (camelCase):** Any variable alias or register macro you define should start with a lowercase letter, with each subsequent word capitalized.
+```
+### Branching and Conditionals
+To unconditionally jump to a label, use the @ prefix:
+```text
+execute_jump:
+    @some_label # Compiles to: j some_label
+
+```
+For conditional branching, Riscrithm uses an inline ternary-like layout. The parser automatically maps your operators to beq, bne, blt, or bge, and swaps registers dynamically to handle asymmetric operations like > and <=.
+ * **Standard If/Else Conditionals:**
+   ```text
+   compare_registers:
+       if foo == bar @true_block else @false_block
+       if foo > baz @greater_block else @lesser_block
+   
+   ```
+ * **Else-less If Statements (New in v1.1):** Guard clauses and lightweight conditional jumps can skip the else branch entirely:
+   ```text
+   guard_check:
+       if foo == bar @true_block
+   
+   ```
+### Loops (Infinite and Conditional)
+Riscrithm avoids high-level loops like while or for to preserve bare-metal transparency. Instead, you build loops using labels, jumps, and inline conditionals.
+**An Infinite Loop:**
+```text
+infinite_loop:
+    foo ++
+    @infinite_loop
+
+```
+**A Conditional Loop:**
+```text
+loop_setup:
+    load foo = 0
+    load bar = 10
+
+loop_start:
+    if foo == bar @loop_end else @loop_body
+
+loop_body:
+    foo ++
+    @loop_start
+
+loop_end:
+    halt
+
+```
+### Subroutine Return Statements (New in v1.1)
+Labels can act as structured, reusable functions using the native return statement, which compiles straight to a hardware ret instruction.
+```text
+multiply_logic:
+    foo *= bar
+    return
+
+```
+### Operations and Mutators
+Riscrithm supports immediate assignments and compound mathematical expressions. The engine automatically appends the i suffix (e.g., addi, xori) when it detects you are working with an integer literal instead of an aliased register.
+ * **Load/Move:**
+   ```text
+   assign_values:
+       load foo = 100
+       move bar = foo
+   
+   ```
+ * **Compound Math:**
+   ```text
+   apply_math:
+       foo += 5
+       bar *= baz
+       foo <<= 2
+   
+   ```
+ * **Increments and Decrements:**
+   ```text
+   adjust_counters:
+       foo ++ # Compiles to: addi foo, foo, 1
+       bar -- # Compiles to: addi bar, bar, -1
+   
+   ```
+> **The ^^ Shorthand:** To quickly and efficiently clear a register, use the XOR-self operator ^^.
+> foo ^^ translates directly to xor foo, foo, foo, zeroing out the register in a single cycle.
+> 
+```text
+reset_state:
+    foo ^^
+
+```
+### Swapping Variables
+To swap the values of two registers without consuming a temporary third register, use the built-in swap command, which expands into a non-destructive triple-XOR sequence:
+```text
+perform_swap:
+    foo swap bar
+
+```
+Translates directly into:
+```text
+xor foo, foo, bar
+xor bar, foo, bar
+xor foo, foo, bar
+
+```
+## 6. Memory Operations (Stack & Heap)
+Interacting with system memory requires strict data width indicators: .b (byte/8-bit), .w (word/32-bit), or .d (double-word/64-bit).
+### Stack Operations
+Stack expressions automatically handle the hardware stack pointer (sp) by shifting its offset before or after data access.
+ * **Push (->):** Decrements sp by the relative width, then stores the register data.
+   ```text
+   save_context:
+       foo -> stack.w # Decrements sp by 4, stores word
+   
+   ```
+ * **Pop (<-):** Loads data from the stack pointer, then increments sp by the relative width.
+   ```text
+   restore_context:
+       bar <- stack.d # Loads double-word, increments sp by 8
+   
+   ```
+ * **Peek (=):** Standard memory load from the current stack address without adjusting sp.
+   ```text
+   check_top:
+       baz = stack.b # Loads byte from stack top without moving sp
+   
+   ```
+### Heap Operations
+Heap expressions require an explicit base address register indicated via & pointer notation.
+ * **Store (->):** Writes data from a register out to the target memory pointer.
+   ```text
+   write_memory:
+       foo -> heap.w from &bar # Stores word from foo into address at bar
+   
+   ```
+ * **Load (<-):** Reads data into a destination register from the target memory pointer.
+   ```text
+   read_memory:
+       baz <- heap.b from &foo # Loads byte into baz from address at foo
+   
+   ```
+## 7. The Compiler Architecture & Optimizer (-o / --optimize)
+The compiler uses a fast, lightweight **two-pass system**:
+ 1. **Pass 1 (Sanitization & Validation):** The parser reads files, strips comments, resolves layout whitespace, evaluates module imports, and executes the compile-time safety and structure checks.
+ 2. **Pass 2 (Parse & Optimize):** The engine iterates through statements, replaces text macros, handles code shorthands, and applies code optimizations before generating the output text.
+When compiling with -o or --optimize, three transformations are applied to make your final binary leaner:
+### Dead Assignment Elimination
+Consecutive redundant assignments or useless load/move operations targeted at the same register are stripped out.
+```text
+# Source Input
+load foo = 128
+load foo = 128
+
+# Optimized Output
+li x1, 128
+
+```
+### Identity Math Elimination & Transformation (Upgraded in v1.1)
+Mathematical expressions that result in no structural change are optimized based on destination contexts:
+ * **Self-Identity Elimination:** If a register undergoes identity operations where it is assigned to itself, the instruction is dropped completely.
+   ```text
+   # Source Input
+   foo = foo + 0
+   bar = bar * 1
+   
+   # Optimized Output
+   # (Instructions deleted entirely)
+   
+   ```
+ * **Cross-Register Identity Transformation:** If you perform an identity operation where the target destination is a *different* register, the compiler converts the operation into a cheap, fast register copy (mv). This rule spans addition, subtraction, multiplication, and division.
+   ```text
+   # Source Input
+   foo = bar + 0
+   foo = bar * 1
+   
+   # Optimized Output
+   mv x1, x2
+   mv x1, x2
+   
+   ```
+### Strength Reduction (Bitwise Folding)
+Multiplication and division are performance-intensive on hardware. If the optimizer identifies multiplication or division by a constant power of two, it rewrites the command as a highly efficient logical bit-shift.
+```text
+# Source Input
+foo = bar * 2
+baz = foo / 8
+
+# Optimized Output
+slli x1, x2, 1 # Shift Left Logical by 1
+srli x3, x1, 3 # Shift Right Logical by 3
+
+```
+## 8. Clean, Ready-to-Use Output
+The assembly file output by Riscrithm is cleanly formatted. The produced .s text is automatically pretty-printed: instructions inside execution blocks are neatly aligned, label targets sit perfectly flush against the left margin, and instructions are highly human-readable.
+You can take the resulting output and drop it straight into hardware simulators, binary toolchains, linkers, or desktop debuggers without manual formatting adjustments.
+## 9. Naming Conventions
+To guarantee projects stay scannable, the compiler encourages a clean visual divide across identifier types:
+ * **Variables & Registers (camelCase):** Aliases for registers or dynamic variables must start with a lowercase letter, with each subsequent word capitalized.
    * *Examples:* firstNum, addressRegister, stackOffset
- * **Labels & Code Blocks (snake_case):** Execution targets, loop boundaries, and conditional blocks use lowercase words separated by underscores. This makes them pop visually against instructions.
+ * **Labels & Code Blocks (snake_case):** Jump locations, block scopes, loop entry boundaries, and subroutines use lowercase words divided by underscores.
    * *Examples:* loop_start, on_true, error_handler
- * **Constants & Literals (SCREAMING_SNAKE_CASE):** Hardcoded configuration values, static offsets, or global definitions that shouldn't change use all-uppercase letters separated by underscores.
+ * **Constants & Literals (SCREAMING_SNAKE_CASE):** Static configurations, macro constants, or invariant boundaries use uppercase letters separated by underscores.
    * *Examples:* DEFAULT_HEADER, MAX_BUFFER_SIZE, IMM_VALUE
-
-## 6. Complete Operator & Expression Reference
-Excluding the hardware system traps and conditional branching symbols, here is the complete table of mutators, arithmetic expressions, and memory operators supported by the single-pass compiler engine.
+## 10. Complete Operator & Expression Reference
 ### Core Expressions and Memory Operators
 | Riscrithm Syntax | Category | Internal Expansion / Behavior | Target RISC-V Assembly |
 |---|---|---|---|
@@ -104,7 +322,6 @@ addi sp, sp, offset |
 | <reg1> <- heap.[b/w/d] from &<reg2> | Heap Memory | Base-register memory read (load) | l[b/w/d] reg1, 0(reg2) |
 | <reg1> -> heap.[b/w/d] from &<reg2> | Heap Memory | Base-register memory write (store) | s[b/w/d] reg1, 0(reg2) |
 ### Math & Bitwise Operators
-This section covers basic math operations, self-mutators, and compound shorthands. Remember, the compiler automatically realigns regular operations to their immediate equivalent (addi, andi, etc.) if the right-hand side is an integer literal.
 | Riscrithm Syntax | Operator Type | Evaluated Expression |
 |---|---|---|
 | <reg> ++ | Self Operator | <reg> = <reg> + 1 |
@@ -127,134 +344,30 @@ This section covers basic math operations, self-mutators, and compound shorthand
 | <reg1> = <reg2> * <val> | Base Arithmetic | Hardware Multiplication (M-Extension) |
 | <reg1> = <reg2> / <val> | Base Arithmetic | Hardware Division (M-Extension) |
 | <reg1> = <reg2> % <val> | Base Arithmetic | Hardware Remainder (M-Extension) |
-
-### Branching and Conditionals
-To unconditionally jump, use the @ symbol:
-```text
-@some_label # Compiles to: j some_label
-
+## 11. Comprehensive Code Examples
+### Riscrithm Source Code
+Example one:
 ```
-For conditional branching, Riscrithm uses an inline if/else ternary style. The compiler automatically maps your logic to beq, bne, blt, or bge, and will even swap registers dynamically to handle > and <=.
-```text
-if foo == bar @true_block else @false_block
-if foo > baz @greater_block else @lesser_block
+header default
+entrypoint main
 
-```
-### Loops (Infinite and Conditional)
-Riscrithm doesn't have a dedicated while or for keyword because you don't need them. You build loops the old-school way using labels, conditionals, and jumps.
-**An Infinite Loop:**
-```text
-infinite_loop:
-    foo ++
-    @infinite_loop
+define foo = x1
+define bar = x2
+define baz = x3
 
-```
-**A Conditional Loop:**
-```text
-load foo = 0
-load bar = 10
-
-loop_start:
-    if foo == bar @loop_end else @loop_body
-
-loop_body:
-    foo ++
-    @loop_start
-
-loop_end:
-    halt
-
-```
-### Operations and Mutators
-Riscrithm supports immediate assignments and compound math shorthands. The compiler is smart enough to append the i suffix (e.g., addi, xori) when it detects you are working with an immediate integer instead of a register.
- * **Load/Move:** load foo = 100, move bar = foo
- * **Math:** foo += 5, bar *= baz, foo <<= 2
- * **Increments:** foo ++ (addi foo, foo, 1), bar -- (addi bar, bar, -1)
-> **The ^^ Shorthand:** Want to clear a register fast? Use the XOR-self operator ^^.
-> foo ^^ translates to xor foo, foo, foo, immediately zeroing out the register.
-> 
-### Swapping Variables
-Need to swap two registers without a temporary third register? The swap command uses a non-destructive triple-XOR sequence:
-```text
-foo swap bar
-
-```
-Translates to:
-```text
-xor foo, foo, bar
-xor bar, foo, bar
-xor foo, foo, bar
-
-```
-
-## 7. Memory Operations (Stack & Heap)
-Memory interaction requires strict data width extensions: .b (byte/8-bit), .w (word/32-bit), or .d (double-word/64-bit).
-### Stack Operations
-Stack commands automatically adjust the hardware stack pointer (sp) by the correct byte offset.
- * **Push (->):** foo -> stack.w (Decrements sp by 4, stores word)
- * **Pop (<-):** bar <- stack.d (Loads double-word, increments sp by 8)
- * **Peek (=):** baz = stack.b (Loads byte without moving sp)
-### Heap Operations
-Heap commands require you to provide a base address register using the & pointer syntax.
- * **Store (->):** foo -> heap.w from &bar (Stores word from foo into address at bar)
- * **Load (<-):** baz <- heap.b from &foo (Loads byte into baz from address at foo)
-
-## 8. Compound Snippet Example
-Here is what a cohesive block of Riscrithm looks like with these features combined:
-```text
 main:
-    # Setup
     load foo = 10
     load bar = 20
-    baz ^^
 
-    # Math and Memory
     foo += 5
-    foo -> stack.w
-    bar *= foo
-    baz <- heap.w from &bar
+    bar += 2
 
-    # Branching
-    if foo != bar @continue else @fail
+    baz = foo + bar
 
-continue:
-    foo swap bar
     halt
-
-fail:
-    trap
-
 ```
-
-## 9. The Compiler Architecture & Optimizer (-o / --optimize)
-Let's clear something up: Riscrithm is not some bloated, complex multi-pass optimization engine. It operates on a lightning-fast **two-pass system**:
- 1. **Pass 1 (Sanitization):** The compiler reads the source file, strips out all comments, standardizes the whitespace, and verifies the strict indentation rules. It gets the raw text completely clean.
- 2. **Pass 2 (Parse & Optimize):** This is where the magic happens in a *single pass*. It parses the instructions, replaces macros, expands shorthands, and—if the -o flag is active—applies optimizations on the fly before writing the assembly.
-When you compile with -o or --optimize, this second pass applies a lightweight AST sweep that cleans up your code in three distinct ways:
- * **Dead Assignment Elimination:** Consecutive duplicate modifications or redundant load/move sequences to the same register are discarded. (e.g., calling load foo = 128 twice in a row results in only one instruction).
- * **Identity Math Elimination:** Mathematical operations that leave the value completely unchanged are dropped entirely if the destination matches the source register (e.g., foo = foo + 0 or bar = bar / 1 are deleted).
- * **Strength Reduction (Bitwise Folding):** Multiplication and division are computationally expensive. If the optimizer catches you multiplying or dividing by a static power of two, it intercepts the instruction and rewrites it as a highly efficient bit-shift.
-   * foo = bar * 2 translates to slli foo, bar, 1 (Shift Left Logical).
-   * baz = foo / 8 translates to srli baz, foo, 3 (Shift Right Logical).
-
-## 10. Clean, Ready-to-Use Output
-One of the best parts about Riscrithm is that the assembly file it spits out isn't an unreadable mess. The output .s file is automatically pretty-printed. Instructions inside blocks are neatly indented, labels sit flush to the margin, and the entire structure is completely human-readable.
-You can take the generated assembly and drop it directly into your hardware simulator, debugger, or desktop workflow without formatting a thing.
-Enjoy writing assembly without the headache. Happy coding!
-
-## 11. Compilation Showcase: Source → Assembly Transformation
-
-One of the most important aspects of Riscrithm is **predictability**.
-
-Every line of Riscrithm maps clearly to RISC-V assembly, and when optimization is enabled, transformations remain transparent and deterministic.
-
-This section demonstrates how a simple program is translated under different compiler modes.
-
----
-
-### Source Program (Riscrithm)
-
-```text
+Example two:
+```
 header default
 entrypoint main
 
@@ -262,112 +375,278 @@ define foo = x1
 define bar = x2
 
 main:
-    load foo = 10
-    load bar = 5
+    load foo = 42
+    load bar = 99
 
-    load foo = 15
-    load foo = 15
+    foo -> stack.w
+    bar -> stack.w
 
-    move bar = 20
-    move bar = 20
-
-    wait
-
-    interrupt.u
+    foo <- stack.w
+    bar <- stack.w
 
     foo swap bar
-    foo += bar
-    foo ++
+
+    halt
+```
+Example three:
+```
+header default
+entrypoint main
+
+define foo = x1
+define bar = x2
+
+main:
+    load foo = 7
+    load bar = 7
+
+    foo = foo * 1
+    bar = bar + 0
 
     foo = bar * 1
 
-    foo *= 2
-    bar /= 8
+    foo *= 8
+    bar /= 2
 
-    bar ^^
+    if foo == bar @equal_block else @not_equal_block
 
-    if foo == bar @equal else @not_equal
-
-equal:
+equal_block:
+    foo ++
     halt
 
-not_equal:
+not_equal_block:
+    foo --
     trap
 ```
+Example four:
+``` orange_banana.txt
+!!banana:
+    addi x1, x1, 10
+    ret
 
----
+orange:
+    bar >>= 1
+    bar &= 10
+    return
 
-### Generated Assembly (No Optimization)
+apple:
+    if foo < bar @banana
+```
+``` horse_battery.txt
+qux:
+    foo swap bar
+    foo ^^
 
-This is the direct lowering of Riscrithm into RISC-V assembly.
+quux:
+    !!li x1, 10
+    bar swap foo
+    bar --
+    foo ++
+```
+``` main.txt
+header default
+entrypoint main
 
-```text
+import "libraries/orange_banana.txt"
+from "libraries/horse_battery.txt" import qux, quux
+
+define foo = x1
+define bar = x2
+define baz = x3
+
+main:
+    load foo = qux
+    load bar = quux
+
+    foo += bar
+    foo -> heap.w from &baz
+
+    halt
+
+    if foo == bar @qux else @quux
+
+    @orange
+    ...
+    @banana
+```
+### Unoptimized RISC-V Assembly Output
+Example one:
+```
 .section .text
 .globl main
 main:
    li x1, 10
-   li x2, 5
-   li x1, 15
-   li x1, 15
-   mv x2, 20
-   mv x2, 20
-   wfi
-   uret
+   li x2, 20
+   addi x1, x1, 5
+   addi x2, x2, 2
+   add x3, x1, x2
+   ecall
+```
+Example two:
+```
+.section .text
+.globl main
+main:
+   li x1, 42
+   li x2, 99
+   addi sp, sp, -4
+   sw x1, 0(sp)
+   addi sp, sp, -4
+   sw x2, 0(sp)
+   lw x1, 0(sp)
+   addi sp, sp, 4
+   lw x2, 0(sp)
+   addi sp, sp, 4
    xor x1, x1, x2
    xor x2, x1, x2
    xor x1, x1, x2
-   add x1, x1, x2
-   addi x1, x1, 1
-   mul x1, x2, 1
-   mul x1, x1, 2
-   div x2, x2, 8
-   xor x2, x2, x2
-   beq x1, x2, equal
-   j not_equal
-equal:
    ecall
-not_equal:
+```
+Example three:
+```
+.section .text
+.globl main
+main:
+   li x1, 7
+   li x2, 7
+   mul x1, x1, 1
+   addi x2, x2, 0
+   mul x1, x2, 1
+   mul x1, x1, 8
+   div x2, x2, 2
+   beq x1, x2, equal_block
+   j not_equal_block
+equal_block:
+   addi x1, x1, 1
+   ecall
+not_equal_block:
+   addi x1, x1, -1
    ebreak
 ```
-
----
-
-### Generated Assembly (Optimized '-o')
-
-When the optimization flag is enabled, Riscrithm performs lightweight transformations.
-
-```text
+Example four:
+```
+.section .text
+.globl main
+main:
+   load x1 = qux
+   load x2 = quux
+   add x1, x1, x2
+   sw x1, 0(x3)
+   ecall
+   beq x1, x2, qux
+   j quux
+   j orange
+   nop
+   j banana
+banana:
+   addi x1, x1, 10
+   ret
+orange:
+   srli x2, x2, 1
+   andi x2, x2, 10
+   ret
+apple:
+   blt x1, x2, banana
+qux:
+   xor x1, x1, x2
+   xor x2, x1, x2
+   xor x1, x1, x2
+   xor x1, x1, x1
+quux:
+   li x1, 10
+   xor x2, x2, x1
+   xor x1, x2, x1
+   xor x2, x2, x1
+   addi x2, x2, -1
+   addi x1, x1, 1
+```
+### Optimized RISC-V Assembly Output (-o)
+Example one:
+```
 .section .text
 .globl main
 main:
    li x1, 10
-   li x2, 5
-   li x1, 15
-   mv x2, 20
-   wfi
-   uret
+   li x2, 20
+   addi x1, x1, 5
+   addi x2, x2, 2
+   add x3, x1, x2
+   ecall
+```
+Example two:
+```
+.section .text
+.globl main
+main:
+   li x1, 42
+   li x2, 99
+   addi sp, sp, -4
+   sw x1, 0(sp)
+   addi sp, sp, -4
+   sw x2, 0(sp)
+   lw x1, 0(sp)
+   addi sp, sp, 4
+   lw x2, 0(sp)
+   addi sp, sp, 4
    xor x1, x1, x2
    xor x2, x1, x2
    xor x1, x1, x2
-   add x1, x1, x2
-   addi x1, x1, 1
-   mul x1, x2, 1
-   slli x1, x1, 1
-   srli x2, x2, 3
-   xor x2, x2, x2
-   beq x1, x2, equal
-   @not_equal
-equal:
    ecall
-not_equal:
-   ebreak
 ```
+Example three:
+```.section .text
+.globl main
+main:
+   li x1, 7
+   li x2, 7
+   mv x1, x2
+   slli x1, x1, 3
+   srli x2, x2, 1
+   beq x1, x2, equal_block
+   j not_equal_block
+equal_block:
+   addi x1, x1, 1
+   ecall
+not_equal_block:
+   addi x1, x1, -1
+   ebreak
 
-## 12. Roadmap: What’s Brewing for v1.1.0?
-​Let’s be real—building a language alone is an iterative grind. While my current two-pass compiler engine handles the heavy lifting by separating symbol resolution from code generation, I am already actively breaking things behind the scenes to bring you a much more robust DX.
-​Here is what I am cooking up for the v1.1.0 release:
-​Proper Module Imports: Right now, splitting code across multiple files is a headache. I am working on a dedicated import system so you can natively break your codebase down into clean, reusable modules without breaking the build pipeline.
-​Better Error Handling: I know the current compiler diagnostics can be... cryptic. The next minor release will introduce accurate line/column tracking and actual, human-readable error messages instead of just blowing up your terminal.
-​Guard Clauses & Simple if Statements: You shouldn't be forced to write an empty else block just to satisfy the parser. I am updating the AST to natively support standalone if branches for cleaner, early-return guard patterns.
-​Contribution & Feedback
-​Have ideas for the syntax, or found an edge-case bug that completely broke the register allocation? Open an issue or drop a PR. This project is built by a developer, for developers—let's make it better together.
+```
+Example four:
+```
+.section .text
+.globl main
+main:
+   load x1 = qux
+   load x2 = quux
+   add x1, x1, x2
+   sw x1, 0(x3)
+   ecall
+   beq x1, x2, qux
+   j quux
+   j orange
+   nop
+   j banana
+banana:
+   addi x1, x1, 10
+   ret
+orange:
+   srli x2, x2, 1
+   andi x2, x2, 10
+   ret
+apple:
+   blt x1, x2, banana
+qux:
+   xor x1, x1, x2
+   xor x2, x1, x2
+   xor x1, x1, x2
+   xor x1, x1, x1
+quux:
+   li x1, 10
+   xor x2, x2, x1
+   xor x1, x2, x1
+   xor x2, x2, x1
+   addi x2, x2, -1
+   addi x1, x1, 1
+```
+Enjoy writing assembly without the traditional architecture headaches. Happy coding!
