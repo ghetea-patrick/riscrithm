@@ -347,7 +347,7 @@ addi sp, sp, offset |
 ## 11. Comprehensive Code Examples
 ### Riscrithm Source Code
 Example one:
-```
+``` text
 header default
 entrypoint main
 
@@ -367,7 +367,7 @@ main:
     halt
 ```
 Example two:
-```
+``` text
 header default
 entrypoint main
 
@@ -389,7 +389,7 @@ main:
     halt
 ```
 Example three:
-```
+``` text
 header default
 entrypoint main
 
@@ -419,7 +419,8 @@ not_equal_block:
     trap
 ```
 Example four:
-``` orange_banana.txt
+``` text
+# orange_banana.txt
 !!banana:
     addi x1, x1, 10
     ret
@@ -432,7 +433,8 @@ orange:
 apple:
     if foo < bar @banana
 ```
-``` horse_battery.txt
+``` text
+# horse_battery.txt
 qux:
     foo swap bar
     foo ^^
@@ -443,7 +445,8 @@ quux:
     bar --
     foo ++
 ```
-``` main.txt
+``` text
+# main.txt
 header default
 entrypoint main
 
@@ -471,7 +474,7 @@ main:
 ```
 ### Unoptimized RISC-V Assembly Output
 Example one:
-```
+``` text
 .section .text
 .globl main
 main:
@@ -483,7 +486,7 @@ main:
    ecall
 ```
 Example two:
-```
+``` text
 .section .text
 .globl main
 main:
@@ -503,7 +506,7 @@ main:
    ecall
 ```
 Example three:
-```
+``` text
 .section .text
 .globl main
 main:
@@ -524,7 +527,7 @@ not_equal_block:
    ebreak
 ```
 Example four:
-```
+``` text
 .section .text
 .globl main
 main:
@@ -562,7 +565,7 @@ quux:
 ```
 ### Optimized RISC-V Assembly Output (-o)
 Example one:
-```
+``` text
 .section .text
 .globl main
 main:
@@ -574,7 +577,7 @@ main:
    ecall
 ```
 Example two:
-```
+``` text
 .section .text
 .globl main
 main:
@@ -594,7 +597,8 @@ main:
    ecall
 ```
 Example three:
-```.section .text
+``` text
+.section .text
 .globl main
 main:
    li x1, 7
@@ -613,7 +617,7 @@ not_equal_block:
 
 ```
 Example four:
-```
+``` text
 .section .text
 .globl main
 main:
