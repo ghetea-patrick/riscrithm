@@ -653,4 +653,4 @@ quux:
    addi x2, x2, -1
    addi x1, x1, 1
 ```
-Enjoy writing assembly without the traditional architecture headaches. Happy coding!
+## Enjoy writing assembly without the traditional architecture headaches. Happy coding!
