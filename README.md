@@ -3,7 +3,7 @@ Hey there. If you're looking at this, you are probably getting your hands dirty 
 With the release of **v1.1**, the language has evolved significantly beyond its original release. I have expanded the feature set to introduce file modularity, cleaner control flow, much tighter compile-time error checks, and an enhanced optimization pass. This iteration provides all the core capabilities needed for an expressive developer experience without hiding what the underlying hardware is executing.
 Let's dive straight into how the compiler works, the syntax rules, and what's happening under the hood.
 ## 1. The CLI
-To compile source code, use the riscrithm CLI tool. The syntax is straightforward:
+To compile source code, use the CLI tool. The syntax is straightforward:
 ```bash
 riscrithm "source_code_file" "assembly_target_file" [-o/--optimize]
 
