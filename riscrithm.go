@@ -12,16 +12,17 @@ import (
 )
 
 const DEFAULT_HEADER string = ".section .text"
-const ASM_INTERRUPT_U string = "uret"
-const ASM_INTERRUPT_S string = "sret"
 const ASM_INTERRUPT_M string = "mret"
+const ASM_INTERRUPT_S string = "sret"
+const ASM_INTERRUPT_U string = "uret"
 const ASM_HALT string = "ecall"
+const ASM_RETURN string = "ret"
 const ASM_DEBUGGER_TRAP string = "ebreak"
 const ASM_WAIT string = "wfi"
-const ASM_PASS string = "nop"
 const ASM_JUMP string = "j "
+const ASM_PASS string = "nop"
 
-func ExtractHeader(lineContent string, lineNumber int) (string, error) {
+func extractHeader(lineContent string, lineNumber int) (string, error) {
 	trimmedLineContent := strings.TrimSpace(lineContent)
 
 	if strings.HasPrefix(trimmedLineContent, "header") {
@@ -34,11 +35,12 @@ func ExtractHeader(lineContent string, lineNumber int) (string, error) {
 		} else {
 			return "", fmt.Errorf("SyntaxError on line %d: Expected a header (e.g. 'header default'), got nothing.", lineNumber)
 		}
+	} else {
+		return "", fmt.Errorf("SyntaxError on line %d: Expected a header (e.g. 'header default').", lineNumber)
 	}
-	return "", nil
 }
 
-func ExtractEntryPoint(lineContent string, lineNumber int) (string, error) {
+func extractEntryPoint(lineContent string, lineNumber int) (string, error) {
 	trimmedLineContent := strings.TrimSpace(lineContent)
 
 	if strings.HasPrefix(trimmedLineContent, "entrypoint") {
@@ -49,17 +51,18 @@ func ExtractEntryPoint(lineContent string, lineNumber int) (string, error) {
 		} else {
 			return "", fmt.Errorf("SyntaxError on line %d: Expected an entrypoint (e.g. 'entrypoint main') got nothing.", lineNumber)
 		}
+	} else {
+		return "", fmt.Errorf("SyntaxError on line %d: Expected an entrypoint (e.g. 'entrypoint main').", lineNumber)
 	}
-	return "", nil
 }
 
-func RegisterMacrosAndExpansions(lineContent string, lineNumber int, macrosAndExpansions *map[string]string) error {
+func registerMacrosAndExpansions(lineContent string, lineNumber int, macrosAndExpansions *map[string]string) error {
 	trimmedLineContent := strings.TrimSpace(lineContent)
 	partsOfLineContent := strings.SplitN(trimmedLineContent, "=", 2)
 
 	if len(partsOfLineContent) == 2 {
-		macro := strings.TrimLeft(RemoveComments(strings.TrimSpace(partsOfLineContent[0])), "define")
-		expension := RemoveComments(strings.TrimSpace(partsOfLineContent[1]))
+		macro := strings.TrimLeft(removeComments(strings.TrimSpace(partsOfLineContent[0])), "define")
+		expension := removeComments(strings.TrimSpace(partsOfLineContent[1]))
 
 		macro = strings.TrimSpace(macro)
 		expension = strings.TrimSpace(expension)
@@ -78,7 +81,7 @@ func RegisterMacrosAndExpansions(lineContent string, lineNumber int, macrosAndEx
 	return nil
 }
 
-func ReplaceMacros(lineContent string, macrosAndExpansions *map[string]string) string {
+func replaceMacros(lineContent string, macrosAndExpansions *map[string]string) string {
 	expandedLineContent := lineContent
 
 	for macro, expansion := range *macrosAndExpansions {
@@ -88,7 +91,7 @@ func ReplaceMacros(lineContent string, macrosAndExpansions *map[string]string) s
 	return expandedLineContent
 }
 
-func ExpandShorthands(lineContent string) string {
+func expandShorthands(lineContent string) string {
 	smallShorthandRegex := regexp.MustCompile(`(\w+)\s*(\+\+|--|\^\^)`)
 	expandedShorthandsLine := smallShorthandRegex.ReplaceAllStringFunc(lineContent, func(match string) string {
 		submatches := smallShorthandRegex.FindStringSubmatch(match)
@@ -107,27 +110,72 @@ func ExpandShorthands(lineContent string) string {
 		}
 	})
 
-	bigShorthandRegex := regexp.MustCompile(`(\w+)\s*([-+/\*%^&|]=|<<=|>>=)\s*([^;\n]+)`)
+	bigShorthandRegex := regexp.MustCompile(`(\w+)\s*([-+/\*%^&|]|<<|>>)=\s*([^;\n]+)`)
 	expandedShorthandsLine = bigShorthandRegex.ReplaceAllStringFunc(expandedShorthandsLine, func(match string) string {
 		submatches := bigShorthandRegex.FindStringSubmatch(match)
 		variable := submatches[1]
 		operator := submatches[2]
 		value := submatches[3]
 
-		simpleOperator := operator[:1]
-		if strings.Contains(expandedShorthandsLine, ">>") {
-			return variable + " = " + variable + " >> " + value
-		}
-		if strings.Contains(expandedShorthandsLine, "<<") {
-			return variable + " = " + variable + " << " + value
-		}
-		return variable + " = " + variable + " " + simpleOperator + " " + value
+		return variable + " = " + variable + " " + operator + " " + value
 	})
 
 	return expandedShorthandsLine
 }
 
-func TransformToAsm(lineContent string) string {
+func extractBlocks(lines []string, targets []string) []string {
+	var results []string
+
+	targetMap := make(map[string]bool)
+	for _, target := range targets {
+		targetMap[target] = true
+	}
+
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		trimmed := strings.TrimSpace(line)
+
+		cleanLine := strings.TrimPrefix(trimmed, "!!")
+		cleanLine = strings.TrimSuffix(cleanLine, ":")
+		cleanLine = strings.TrimSpace(cleanLine)
+
+		if targetMap[cleanLine] {
+			var block []string = []string{trimmed}
+
+			for j := i + 1; j < len(lines); j++ {
+				nextLine := lines[j]
+
+				if !strings.HasSuffix(nextLine, ":") {
+					block = append(block, strings.TrimSpace(nextLine))
+					i = j
+				} else {
+					break
+				}
+			}
+
+			if len(block) > 1 {
+				results = append(results, block...)
+			}
+		}
+	}
+
+	return results
+}
+
+func extractJumps(lineContent string) []string {
+	var jumps []string
+
+	jumpRegex := regexp.MustCompile(`@(\S+)`)
+	matches := jumpRegex.FindAllStringSubmatch(lineContent, -1)
+
+	for _, match := range matches {
+		jumps = append(jumps, match[1])
+	}
+
+	return jumps
+}
+
+func transformToAsm(lineContent string) string {
 	operationRegex := regexp.MustCompile(`^(\w+)\s*=\s*(\w+)\s*([+\-&|^|\*|/|%]|<<|>>)\s*(\w+)$`)
 	if !operationRegex.MatchString(strings.TrimSpace(lineContent)) {
 		return lineContent
@@ -204,7 +252,7 @@ func TransformToAsm(lineContent string) string {
 	return instruction + " " + destinationRegister + ", " + sourceRegister + ", " + secondOperand
 }
 
-func TransformLoadToAsm(lineContent string) string {
+func transformLoadToAsm(lineContent string) string {
 	loadRegex := regexp.MustCompile(`^load\s*(\w+)\s*=\s*(\w+)$`)
 	if !loadRegex.MatchString(strings.TrimSpace(lineContent)) {
 		return lineContent
@@ -221,7 +269,7 @@ func TransformLoadToAsm(lineContent string) string {
 	return lineContent
 }
 
-func TransformMoveToAsm(lineContent string) string {
+func transformMoveToAsm(lineContent string) string {
 	loadRegex := regexp.MustCompile(`^move\s*(\w+)\s*=\s*(\w+)$`)
 	if !loadRegex.MatchString(strings.TrimSpace(lineContent)) {
 		return lineContent
@@ -238,7 +286,7 @@ func TransformMoveToAsm(lineContent string) string {
 	return lineContent
 }
 
-func TransformSwapToAsm(lineContent string) []string {
+func transformSwapToAsm(lineContent string) []string {
 	swapRegex := regexp.MustCompile(`^(\w+)\s*swap\s*(\w+)$`)
 	if !swapRegex.MatchString(strings.TrimSpace(lineContent)) {
 		return []string{lineContent}
@@ -259,20 +307,28 @@ func TransformSwapToAsm(lineContent string) []string {
 	return []string{firstLine, secondLine, thirdLine}
 }
 
-func TransformConditionalToAsm(lineContent string) []string {
-	conditionalRegex := regexp.MustCompile(`^if\s*(\w+)\s*(==|!=|>=|<=|>|<)\s*(\w+)\s*@(\w+)\s*else\s*@(\w+)$`)
-	if !conditionalRegex.MatchString(strings.TrimSpace(lineContent)) {
+func transformConditionalToAsm(lineContent string) []string {
+	var containsElse bool
+	var branchInstruction string
+	var matches []string
+
+	conditionalRegexWithElse := regexp.MustCompile(`^if\s*(\w+)\s*(==|!=|>=|<=|>|<)\s*(\w+)\s*@(\w+)\s*else\s*@(\w+)$`)
+	conditionalRegexWithoutElse := regexp.MustCompile(`^if\s*(\w+)\s*(==|!=|>=|<=|>|<)\s*(\w+)\s*@(\w+)$`)
+
+	if conditionalRegexWithElse.MatchString(strings.TrimSpace(lineContent)) {
+		matches = conditionalRegexWithElse.FindStringSubmatch(strings.TrimSpace(lineContent))
+		containsElse = true
+	} else if conditionalRegexWithoutElse.MatchString(strings.TrimSpace(lineContent)) {
+		matches = conditionalRegexWithoutElse.FindStringSubmatch(strings.TrimSpace(lineContent))
+		containsElse = false
+	} else {
 		return []string{lineContent}
 	}
-
-	matches := conditionalRegex.FindStringSubmatch(strings.TrimSpace(lineContent))
 	firstRegister := matches[1]
 	operator := matches[2]
 	secondRegister := matches[3]
 	trueLabel := matches[4]
-	falseLabel := matches[5]
 
-	var branchInstruction string
 	switch operator {
 	case "==":
 		branchInstruction = "beq"
@@ -291,12 +347,15 @@ func TransformConditionalToAsm(lineContent string) []string {
 	}
 
 	conditionLine := branchInstruction + " " + firstRegister + ", " + secondRegister + ", " + trueLabel
-	jumpFalseLine := "j " + falseLabel
 
-	return []string{conditionLine, jumpFalseLine}
+	if containsElse {
+		return []string{conditionLine, "j " + matches[5]}
+	} else {
+		return []string{conditionLine}
+	}
 }
 
-func TransformStackOperationToAsm(lineContent string) []string {
+func transformStackOperationToAsm(lineContent string) []string {
 	trimmedLine := strings.TrimSpace(lineContent)
 
 	pushRegex := regexp.MustCompile(`^(\w+)\s*->\s*stack\.(b|w|d)$`)
@@ -373,7 +432,7 @@ func TransformStackOperationToAsm(lineContent string) []string {
 	return []string{lineContent}
 }
 
-func TransformHeapOperationToAsm(lineContent string) []string {
+func transformHeapOperationToAsm(lineContent string) []string {
 	trimmedLine := strings.TrimSpace(lineContent)
 
 	heapLoadRegex := regexp.MustCompile(`^(\w+)\s*<-\s*heap\.(b|w|d)\s+from\s+&\s*(\w+)$`)
@@ -420,7 +479,7 @@ func TransformHeapOperationToAsm(lineContent string) []string {
 	return []string{lineContent}
 }
 
-func OptimizeLineContent(lineContent string, previousLineContent string) string {
+func optimizeLineContent(lineContent string, previousLineContent string) string {
 	currentLineTrimmed := strings.TrimSpace(lineContent)
 	previousLineTrimmed := strings.TrimSpace(previousLineContent)
 
@@ -459,6 +518,12 @@ func OptimizeLineContent(lineContent string, previousLineContent string) string 
 		if isIdentity {
 			if destinationRegister == sourceRegister {
 				return ""
+			} else {
+				if (operator == "+" || operator == "-") && numericValue == 0 {
+					return "mv " + destinationRegister + ", " + sourceRegister
+				} else if (operator == "*" || operator == "/") && numericValue == 1 {
+					return "mv " + destinationRegister + ", " + sourceRegister
+				}
 			}
 			return lineContent
 		}
@@ -507,7 +572,46 @@ func OptimizeLineContent(lineContent string, previousLineContent string) string 
 	return lineContent
 }
 
-func ReadAndValidateSourceFile(filePath string) ([]string, error) {
+func hasDuplicates(seenLabels []string) bool {
+	seen := make(map[string]bool)
+	for _, label := range seenLabels {
+		if seen[label] {
+			fmt.Printf("SyntaxError: Label '%s' was defined more than once.", label)
+			return true
+		}
+		seen[label] = true
+	}
+	return false
+}
+
+func isSubset(seenJumps []string, seenLabels []string) bool {
+	seenInLabels := make(map[string]bool)
+	for _, label := range seenLabels {
+		seenInLabels[label] = true
+	}
+
+	for _, jump := range seenJumps {
+		if !seenInLabels[jump] {
+			fmt.Printf("SyntaxError: Jumping to '%s' requires the label to be defined", jump)
+			return false
+		}
+	}
+
+	return true
+}
+
+func validateLabelsAndJumps(seenLabels []string, seenJumps []string) bool {
+	if hasDuplicates(seenLabels) {
+		return false
+	}
+	if !isSubset(seenJumps, seenLabels) {
+		return false
+	}
+
+	return true
+}
+
+func readAndValidateSourceFile(filePath string) ([]string, error) {
 	file, openingError := os.Open(filePath)
 	if openingError != nil {
 		return nil, openingError
@@ -515,6 +619,11 @@ func ReadAndValidateSourceFile(filePath string) ([]string, error) {
 	defer file.Close()
 
 	var scriptLines []string
+	var seenImportPaths []string
+	var seenFromImportLabels []string
+	var scriptLinesOfImportPaths []string
+	var scriptLinesOfFromImportPaths []string
+
 	scanner := bufio.NewScanner(file)
 	lineNumber := 0
 	insideLabelBlock := false
@@ -531,28 +640,83 @@ func ReadAndValidateSourceFile(filePath string) ([]string, error) {
 		isHeader := strings.HasPrefix(rawLine, "header")
 		isEntryPoint := strings.HasPrefix(rawLine, "entrypoint")
 		isDefinition := strings.HasPrefix(rawLine, "define")
+		isImport := strings.HasPrefix(rawLine, "import")
+		isFromImport := strings.HasPrefix(rawLine, "from")
 		isComment := strings.HasPrefix(rawLine, "#")
+
+		uncommentedLine := removeComments(rawLine)
+		normalizedLine := normalizeLineWhitespace(removeComments(rawLine))
 
 		if isComment {
 			continue
 		}
 
+		importRegex := regexp.MustCompile(`^import\s+['"]([^'"]+)['"]\s*$`)
+
+		if isImport && importRegex.MatchString(normalizedLine) {
+			importPath := importRegex.FindStringSubmatch(normalizedLine)[1]
+
+			if slices.Contains(seenImportPaths, importPath) {
+				return nil, fmt.Errorf("SyntaxError on line %d: Path %s is imported more than once.", lineNumber, importPath)
+			}
+
+			seenImportPaths = append(seenImportPaths, importPath)
+			scriptLinesOfImportPath, errorReadingAndValidatingSourceFile := readAndValidateSourceFile(importPath)
+
+			if errorReadingAndValidatingSourceFile != nil {
+				return nil, errorReadingAndValidatingSourceFile
+			}
+			scriptLinesOfImportPaths = append(scriptLinesOfImportPaths, scriptLinesOfImportPath...)
+			continue
+		}
+
 		if isHeader || isEntryPoint || isDefinition {
-			normalizedLine := NormalizeLineWhitespace(rawLine)
+			scriptLines = append(scriptLines, normalizedLine)
+			continue
+		}
+
+		fromImportRegex := regexp.MustCompile(`^from\s+['"]([^'"]+)['"]\s+import\s+(.+)$`)
+
+		if isFromImport && fromImportRegex.MatchString(normalizedLine) {
+			fromImportPath := fromImportRegex.FindStringSubmatch(normalizedLine)[1]
+			fromImportLabelsAsString := fromImportRegex.FindStringSubmatch(normalizedLine)[2]
+			fromImportLabelsAsSlice := strings.Split(fromImportLabelsAsString, ",")
+
+			for _, fromImportLabel := range fromImportLabelsAsSlice {
+				normalizedFromImportLabel := strings.TrimSpace(fromImportLabel)
+
+				if slices.Contains(seenFromImportLabels, normalizedFromImportLabel) {
+					return nil, fmt.Errorf("SyntaxError on line %d: Label '%s' is imported more than once.", lineNumber, normalizedFromImportLabel)
+				} else {
+					seenFromImportLabels = append(seenFromImportLabels, normalizedFromImportLabel)
+				}
+			}
+
+			scriptLinesOfFromImportPath, errorReadingAndValidatingSourceFile := readAndValidateSourceFile(fromImportPath)
+
+			if errorReadingAndValidatingSourceFile != nil {
+				return nil, errorReadingAndValidatingSourceFile
+			}
+			scriptLinesOfFromImportPaths = append(scriptLinesOfImportPaths, scriptLinesOfFromImportPath...)
+			continue
+		}
+
+		if isHeader || isEntryPoint || isDefinition {
 			scriptLines = append(scriptLines, normalizedLine)
 			continue
 		}
 
 		isLabel := strings.HasSuffix(trimmedLine, ":")
-		hasIndentation := strings.HasPrefix(RemoveComments(rawLine), " ") || strings.HasPrefix(RemoveComments(rawLine), "\t")
+		hasIndentation := strings.HasPrefix(uncommentedLine, " ") || strings.HasPrefix(uncommentedLine, "\t")
 
 		if isLabel {
 			if hasIndentation {
 				return nil, fmt.Errorf("SyntaxError on line %d: labels must not be indented", lineNumber)
 			}
+			if normalizedLine != "" {
+				scriptLines = append(scriptLines, normalizedLine)
+			}
 			insideLabelBlock = true
-			normalizedLine := NormalizeLineWhitespace(rawLine)
-			scriptLines = append(scriptLines, normalizedLine)
 			continue
 		}
 
@@ -560,8 +724,9 @@ func ReadAndValidateSourceFile(filePath string) ([]string, error) {
 			if !hasIndentation {
 				return nil, fmt.Errorf("SyntaxError on line %d: instructions inside a label block must be indented", lineNumber)
 			}
-			normalizedLine := NormalizeLineWhitespace(rawLine)
-			scriptLines = append(scriptLines, normalizedLine)
+			if normalizedLine != "" {
+				scriptLines = append(scriptLines, normalizedLine)
+			}
 			continue
 		}
 
@@ -572,10 +737,10 @@ func ReadAndValidateSourceFile(filePath string) ([]string, error) {
 		return nil, scanningError
 	}
 
-	return scriptLines, nil
+	return append(scriptLines, append(scriptLinesOfImportPaths, extractBlocks(scriptLinesOfFromImportPaths, seenFromImportLabels)...)...), nil
 }
 
-func WriteAsmFile(filePath string, scriptLines []string) error {
+func writeAsmFile(filePath string, scriptLines []string) error {
 	file, creationError := os.Create(filePath)
 	if creationError != nil {
 		return creationError
@@ -609,7 +774,7 @@ func WriteAsmFile(filePath string, scriptLines []string) error {
 	return nil
 }
 
-func NormalizeLineWhitespace(line string) string {
+func normalizeLineWhitespace(line string) string {
 	var resultBuilder strings.Builder
 	insideQuotes := false
 	previousWasWhitespace := false
@@ -640,49 +805,68 @@ func NormalizeLineWhitespace(line string) string {
 		}
 	}
 
-	return RemoveComments(resultBuilder.String())
+	return removeComments(resultBuilder.String())
 }
 
-func RemoveComments(lineContent string) string {
+func removeComments(lineContent string) string {
 	NotCommentedLine, _, _ := strings.Cut(lineContent, "#")
 
 	return NotCommentedLine
 }
 
-func Parse(scriptLines []string, optimizationFlag bool) ([]string, string, string) {
+func parse(scriptLines []string, optimizationFlag bool) ([]string, string, string) {
 	var header string
 	var entrypoint string
 	var err error
 	var macrosAndExpansions map[string]string
 	var parsedScriptLines []string
-	var enteredRawAssemblyLabel bool = false
+	var enteredRawAssemblyLabel bool
+	var labelAndJumpsAreInSync bool
 	var previousLineContent string
+	var seenLabels []string
+	var seenJumps []string
+	var seenReturn bool
 
 	macrosAndExpansions = make(map[string]string)
 
 	for lineNumber, lineContent := range scriptLines {
-		if strings.HasPrefix(lineContent, "!!") && strings.HasSuffix(lineContent, ":") {
-			enteredRawAssemblyLabel = true
-			lineContent = strings.TrimLeft(lineContent, "! ")
+		if strings.HasPrefix(lineContent, "!!") && !strings.HasSuffix(lineContent, ":") {
+			parsedScriptLines = append(parsedScriptLines, strings.TrimLeft(lineContent, "!"))
+			continue
 		}
-		if !strings.HasPrefix(lineContent, "!!") && strings.HasSuffix(lineContent, ":") {
-			enteredRawAssemblyLabel = false
+		if strings.HasPrefix(lineContent, "header") || strings.HasSuffix(lineContent, ":") || lineContent == "" || lineContent == "\n" {
+			seenReturn = false
+		} else {
+			if seenReturn {
+				fmt.Printf("SyntaxError on line %d: Cannot have any actions after a return.", lineNumber)
+				goto out
+			}
+			seenReturn = false
+		}
+		if strings.HasSuffix(strings.TrimSpace(lineContent), ":") {
+			if strings.HasPrefix(lineContent, "!!") {
+				enteredRawAssemblyLabel = true
+			} else {
+				enteredRawAssemblyLabel = false
+			}
+			lineContent = strings.Trim(lineContent, "! ")
+			seenLabels = append(seenLabels, strings.Trim(lineContent, ":"))
 		}
 		if enteredRawAssemblyLabel {
 			parsedScriptLines = append(parsedScriptLines, lineContent)
 			continue
 		}
+
 		if lineNumber == 0 {
-			header, err = ExtractHeader(lineContent, lineNumber)
+			header, err = extractHeader(lineContent, lineNumber)
 			if err != nil {
 				fmt.Println(err)
 				goto out
 			}
 			continue
 		}
-
 		if lineNumber == 1 {
-			entrypoint, err = ExtractEntryPoint(lineContent, lineNumber)
+			entrypoint, err = extractEntryPoint(lineContent, lineNumber)
 			if err != nil {
 				fmt.Println(err)
 				goto out
@@ -691,57 +875,73 @@ func Parse(scriptLines []string, optimizationFlag bool) ([]string, string, strin
 		}
 
 		if strings.HasPrefix(lineContent, "define") {
-			RegisterMacrosAndExpansions(lineContent, lineNumber, &macrosAndExpansions)
+			registerMacrosAndExpansions(lineContent, lineNumber, &macrosAndExpansions)
 			continue
 		}
 
-		lineContent = ReplaceMacros(lineContent, &macrosAndExpansions)
+		lineContent = replaceMacros(lineContent, &macrosAndExpansions)
 
-		if strings.Contains(lineContent, "if") && strings.Contains(lineContent, "else") {
-			conditionalStatementToAsm := TransformConditionalToAsm(lineContent)
-			parsedScriptLines = append(parsedScriptLines, conditionalStatementToAsm...)
-			continue
-		}
 		if strings.Contains(lineContent, "swap") {
-			swapStatementToAsm := TransformSwapToAsm(lineContent)
+			swapStatementToAsm := transformSwapToAsm(lineContent)
 			parsedScriptLines = append(parsedScriptLines, swapStatementToAsm...)
 			continue
 		}
-		if strings.Contains(lineContent, "stack") && (strings.Contains(lineContent, ".w") || strings.Contains(lineContent, ".b") || strings.Contains(lineContent, ".d")) {
-			stackStatementToAsm := TransformStackOperationToAsm(lineContent)
+		if strings.Contains(lineContent, "if") {
+			conditionalStatementToAsm := transformConditionalToAsm(lineContent)
+			parsedScriptLines = append(parsedScriptLines, conditionalStatementToAsm...)
+			continue
+		}
+		if strings.Contains(lineContent, "stack") {
+			stackStatementToAsm := transformStackOperationToAsm(lineContent)
 			parsedScriptLines = append(parsedScriptLines, stackStatementToAsm...)
 			continue
 		}
-		if strings.Contains(lineContent, "heap") && (strings.Contains(lineContent, ".w") || strings.Contains(lineContent, ".b") || strings.Contains(lineContent, ".d")) {
-			heapStatementToAsm := TransformHeapOperationToAsm(lineContent)
+		if strings.Contains(lineContent, "heap") {
+			heapStatementToAsm := transformHeapOperationToAsm(lineContent)
 			parsedScriptLines = append(parsedScriptLines, heapStatementToAsm...)
 			continue
 		}
 
-		lineContent = ExpandShorthands(lineContent)
+		lineContent = expandShorthands(lineContent)
+
 		if optimizationFlag {
-			lineContent = OptimizeLineContent(lineContent, previousLineContent)
+			lineContent = optimizeLineContent(lineContent, previousLineContent)
 		}
 		if lineContent != "" {
 			previousLineContent = lineContent
 		}
-		lineContent = strings.ReplaceAll(lineContent, "interrupt.u", ASM_INTERRUPT_U)
-		lineContent = strings.ReplaceAll(lineContent, "interrupt.s", ASM_INTERRUPT_S)
+		if strings.Contains(lineContent, "return") {
+			seenReturn = true
+		}
+		if strings.Contains(lineContent, "@") {
+			seenJumps = append(seenJumps, extractJumps(lineContent)...)
+		}
+
 		lineContent = strings.ReplaceAll(lineContent, "interrupt.m", ASM_INTERRUPT_M)
+		lineContent = strings.ReplaceAll(lineContent, "interrupt.s", ASM_INTERRUPT_S)
+		lineContent = strings.ReplaceAll(lineContent, "interrupt.u", ASM_INTERRUPT_U)
 		lineContent = strings.ReplaceAll(lineContent, "halt", ASM_HALT)
+		lineContent = strings.ReplaceAll(lineContent, "return", ASM_RETURN)
 		lineContent = strings.ReplaceAll(lineContent, "trap", ASM_DEBUGGER_TRAP)
 		lineContent = strings.ReplaceAll(lineContent, "wait", ASM_WAIT)
-		lineContent = strings.ReplaceAll(lineContent, "...", ASM_PASS)
 		lineContent = strings.ReplaceAll(lineContent, "@", ASM_JUMP)
-		lineContent = TransformToAsm(lineContent)
-		lineContent = TransformLoadToAsm(lineContent)
-		lineContent = TransformMoveToAsm(lineContent)
+		lineContent = strings.ReplaceAll(lineContent, "...", ASM_PASS)
+		lineContent = transformToAsm(lineContent)
+		lineContent = transformLoadToAsm(lineContent)
+		lineContent = transformMoveToAsm(lineContent)
 
 		if lineContent != "" {
 			parsedScriptLines = append(parsedScriptLines, lineContent)
 		}
 	}
-
+	labelAndJumpsAreInSync = validateLabelsAndJumps(seenLabels, seenJumps)
+	if !labelAndJumpsAreInSync {
+		goto out
+	}
+	if !slices.Contains(seenLabels, entrypoint) {
+		fmt.Printf("SyntaxError: Entrypoint specifies '%s' but '%s' label is not implemented.", entrypoint, entrypoint)
+		goto out
+	}
 	return parsedScriptLines, header, ".globl " + entrypoint
 
 out:
@@ -758,12 +958,12 @@ func main() {
 	if len(os.Args) >= 3 {
 		filePathSourceCode := os.Args[1]
 		filePathAsmFile := os.Args[2]
-		scriptLines, readingError := ReadAndValidateSourceFile(filePathSourceCode)
+		scriptLines, readingError := readAndValidateSourceFile(filePathSourceCode)
 		if readingError == nil {
 			if len(os.Args) == 4 && (slices.Contains(os.Args, "-o") || slices.Contains(os.Args, "--optimize")) {
-				parsedScriptLines, header, entrypoint = Parse(scriptLines, true)
+				parsedScriptLines, header, entrypoint = parse(scriptLines, true)
 			} else if len(os.Args) == 3 && !(slices.Contains(os.Args, "-o") || slices.Contains(os.Args, "--optimize")) {
-				parsedScriptLines, header, entrypoint = Parse(scriptLines, false)
+				parsedScriptLines, header, entrypoint = parse(scriptLines, false)
 			} else {
 				fmt.Println("CommandLineError: Expected a source code file, an assembly target file and an optional '--optimize'/'-o' flag.")
 				goto out
@@ -771,7 +971,7 @@ func main() {
 			fullAsmCode := []string{header, entrypoint}
 			fullAsmCode = append(fullAsmCode, parsedScriptLines...)
 			if fullAsmCode[0] != "" {
-				writtingError := WriteAsmFile(filePathAsmFile, fullAsmCode)
+				writtingError := writeAsmFile(filePathAsmFile, fullAsmCode)
 				if writtingError != nil {
 					fmt.Println(writtingError.Error())
 					goto out
