@@ -1,3 +1,13 @@
+# !!! CAUTION !!!
+
+I am currently actively rebuilding the core compiler for Riscrithm v2.0 to bring massive performance and developer experience improvements.
+Backwards compatability: __Broken__. Most v1.1 scripts will __NOT__ be compatible with v2.0 out of the box.
+
+Hey everyone! I'm excited to announce that the syntax for v2.0 is finally ready and work has officially started for Riscrithm v2.0!
+I am actively building a completely redesigned compiler from the ground up to make Riscrithm much better.
+__v1.1 scripts will break in v2.0__. Backwards compatability is being intentionally dropped due to technical debt.
+### If you have active projects, keep them pinned for v1.1 for now. Stay tuned for progress updates!
+
 # The Riscrithm Developer Manual (v1.1)
 Hey there. If you're looking at this, you are probably getting your hands dirty with **Riscrithm**, a high-level macro-assembly dialect that compiles straight down to pure RISC-V assembly. Think of it as a bridge between the readability of a high-level language and the raw, deterministic control of bare-metal hardware.
 With the release of **v1.1**, the language has evolved significantly beyond its original release. I have expanded the feature set to introduce file modularity, cleaner control flow, much tighter compile-time error checks, and an enhanced optimization pass. This iteration provides all the core capabilities needed for an expressive developer experience without hiding what the underlying hardware is executing.
