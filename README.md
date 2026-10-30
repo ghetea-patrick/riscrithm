@@ -13,6 +13,467 @@
 >
 > The v2.0 syntax is now finalized and active compiler development has officially started.
 
+> [!IMPORTANT]
+> **The following code showcases the new Riscrithm v2.0 syntax.**
+>
+> It provides an overview of the language's updated syntax, including imports, declarations, type definitions, operators, functions, control flow, and register operations.
+>
+> The examples demonstrate the currently established syntax and provide a reference for how Riscrithm v2.0 code is intended to look.
+>
+> ```text
+> import "library" as lib
+> import "library" as ...
+> import "library"
+>
+> import "library" as lib without {Cs, Vs, As}
+> import "library" as lib without {Cs, As, Ls}
+> import "library" as lib without {As, Vs, Ls}
+> import "library" as ... without {Cs}
+> import "library" as ... without {Vs}
+> import "library" as ... without {As}
+> import "library" as ... without {Ls}
+>
+> import "library" without {Cs, Vs, As}
+> import "library" without {Cs, As, Ls}
+> import "library" without {As, Vs, Ls}
+> import "library" without {Cs}
+> import "library" without {Vs}
+> import "library" without {As}
+> import "library" without {Ls}
+>
+> from "library" import {Cs} without {Vs, As, Ls}
+> from "library" import {Vs} without {As, Cs, Ls}
+> from "library" import {As} without {Ls}
+> from "library" import {Ls} without {Cs}
+>
+> from "library" as lib import {Cs} without {Vs, As, Ls}
+> from "library" as lib import {Vs} without {As, Cs, Ls}
+> from "library" as ... import {As} without {Ls}
+> from "library" as ... import {Ls} without {Cs}
+>
+> from "library" as lib import {Cs}
+> from "library" as lib import {Vs}
+> from "library" as ... import {As}
+> from "library" as ... import {Ls}
+>
+> from "library" import {C.apples} without {Cs, Vs, As}
+> from "library" import {V.banana} without {Ls, As, Vs}
+> from "library" import {A.orange} without {Cs}
+> from "library" import {L.cherry} without {Vs}
+>
+> from "library" import {C.apples, function}
+> from "library" import {V.banana, function}
+> from "library" import {A.orange}
+> from "library" import {L.cherry}
+>
+> from "library" import {function, function}
+> from "library" import {function}
+>
+> from "library" import {function} without! {dependency}
+> from "library" import {function} without {dependency}
+>
+> # ................................
+> ; ................................
+>
+> \\\
+>
+> using Align of 0
+> using Balig of 0
+> using Linux
+>
+> V.apples: [B] = [0, 1, 2, 3]
+> V.banana: [H] = [2;4 .. 100]
+> V.orange: [W] = [1 .. 5]
+> V.cherry: [D] = [0 ** 3]
+> V.apples: [F] = [4.2, 1.337]
+>
+> V.apples: S = "................"
+> V.banana: R = '................'
+>
+> V.apples: S = "..." ** 42
+> V.banana: R = '...' ** 42
+>
+> C.apples: B = {}
+> C.banana: H = {}
+> C.orange: W = {}
+> C.cherry: D = {}
+> C.apples: F = {}
+>
+> C.banana: S = {}
+> C.orange: R = {}
+>
+> C.apples: [B] = {}
+> C.banana: [H] = {}
+> C.orange: [W] = {}
+> C.cherry: [D] = {}
+> C.apples: [F] = {}
+>
+> C.apples: B = B^+
+> C.banana: H = H^+
+> C.orange: W = W^+
+> C.cherry: D = D^+
+> C.apples: F = F^+
+>
+> C.apples: B = B^-
+> C.banana: H = H^-
+> C.orange: W = W^-
+> C.cherry: D = D^-
+> C.apples: F = F^-
+>
+> A.apples: `x = x
+> A.banana: `t = t
+> A.orange: `f = f
+>
+> lib::C.apples: [B] = 42
+> lib::C.banana: [H] = 42
+> lib::C.orange: [W] = 42
+> lib::C.cherry: [D] = 42
+> lib::C.apples: [F] = 42.0
+>
+> lib::function (dependency)
+> {
+> ....................
+> ....................
+> @dependency
+> }
+>
+> lib::function
+> {
+> ....................
+> ....................
+> @dependency
+> }
+>
+> function (dependency)
+> {
+> ....................
+> ....................
+> @dependency
+> }
+>
+> => lib::function
+>
+> => function
+> {
+> |B| A.reg -> |||
+> |H| A.reg <- |||
+> |W| A.reg <? |||
+> 128 A.reg <- |||
+>
+> if V.var == {[B]}: @good
+> if V.var != {[H]}: @good
+> if V.var >= {[W]}: @good
+> if V.var <= {[D]}: @good
+> if V.var == {[F]}: @good
+>
+> if V.var == {B}: @good
+> if V.var != {H}: @good
+> if V.var >= {W}: @good
+> if V.var <= {D}: @good
+> if V.var == {F}: @good
+>
+> if V.var == {S}: @good
+> if V.var != {R}: @good
+>
+> if V.var > V.var: @good
+> @bad
+>
+> if V.var < V.var: @good
+> @bad
+>
+> !! ....................
+> }
+>
+> !! function
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> ## function
+> {
+> A.reg = A.reg + A.reg
+> A.reg = A.reg - A.reg
+> A.reg = A.reg * A.reg
+> A.reg = A.reg / A.reg
+> A.reg = A.reg % A.reg
+>
+> A.reg = A.reg & A.reg
+> A.reg = A.reg | A.reg
+> A.reg = A.reg ^ A.reg
+>
+> A.reg = ~A.reg
+>
+> A.reg = A.reg >> A.reg
+> A.reg = A.reg << A.reg
+> }
+>
+> ## function
+> {
+> A.reg = A.reg +. A.reg
+> A.reg = A.reg -. A.reg
+> A.reg = A.reg *. A.reg
+> A.reg = A.reg /. A.reg
+> A.reg = A.reg %. A.reg
+> }
+>
+> ## function
+> {
+> A.reg = A.reg + (B)A.reg
+> A.reg = A.reg - (H)A.reg
+> A.reg = A.reg * (W)A.reg
+> A.reg = A.reg / (D)A.reg
+> A.reg = A.reg % (B)A.reg
+>
+> A.reg = (B)A.reg & A.reg
+> A.reg = (H)A.reg | A.reg
+> A.reg = (W)A.reg ^ A.reg
+>
+> A.reg = ~(B)A.reg
+>
+> A.reg = (B)A.reg >> (B)A.reg
+> A.reg = (H)A.reg << (H)A.reg
+> }
+>
+> ## function
+> {
+> A.reg = A.reg +. (F)A.reg
+> A.reg = A.reg -. (F)A.reg
+> A.reg = A.reg *. (F)A.reg
+> A.reg = A.reg /. (F)A.reg
+> A.reg = A.reg %. (F)A.reg
+>
+> A.reg = (F)A.reg +. A.reg
+> A.reg = (F)A.reg -. A.reg
+> A.reg = (F)A.reg *. A.reg
+>
+> A.reg = (F)A.reg +. (F)A.reg
+> A.reg = (F)A.reg /. (F)A.reg
+> A.reg = (F)A.reg %. (F)A.reg
+> }
+>
+> function
+> {
+> A.reg^^
+> A.reg++
+> A.reg--
+> A.reg~~
+> }
+>
+> function
+> {
+> A.reg += A.reg
+> A.reg -= A.reg
+> A.reg *= A.reg
+> A.reg /= A.reg
+> A.reg %= A.reg
+>
+> A.reg &= A.reg
+> A.reg |= A.reg
+> A.reg ^= A.reg
+>
+> A.reg <> A.reg
+> }
+>
+> function
+> {
+> A.reg +.= A.reg
+> A.reg -.= A.reg
+> A.reg *.= A.reg
+> A.reg /.= A.reg
+> A.reg %.= A.reg
+> }
+>
+> function
+> {
+> |B| A.reg ~> C.pointer ? @function
+> |H| A.reg ~> C.pointer ? @function
+> |W| A.reg ~> C.pointer ? @.
+> 128 A.reg ~> C.pointer ? @.
+> }
+>
+> function
+> {
+> () V.var -> V.var
+> $$ V.var
+> <- V.var
+> }
+>
+> function
+> {
+> |B| A.reg <~ C.pointer
+> |H| A.reg <~ C.pointer
+> 128 A.reg <~ C.pointer
+> }
+>
+> # ................................................................
+>
+> import "library" as lib
+>
+> => function
+> {
+> if lib::V.var < lib::V.var: @good
+> @bad
+> if lib::V.var > lib::V.var: @good
+> <- lib::V.var
+> }
+>
+> ()
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> # ................................................................
+>
+> import "library" as lib
+>
+> => function
+> {
+> if lib::V.var < lib::V.var: @good
+> @bad
+> if lib::V.var > lib::V.var: @good
+> <- lib::V.var
+> }
+>
+> () 42
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> # ................................................................
+>
+> import "library" as lib
+>
+> => function
+> {
+> if lib::V.var < lib::V.var: @good
+> @bad
+> if lib::V.var > lib::V.var: @good
+> <- lib::V.var
+> }
+>
+> <-
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> () 37
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> () 42
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> # ................................................................
+>
+> import "library" as lib
+>
+> => function
+> {
+> if lib::V.var < lib::V.var: @good
+> @bad
+> if lib::V.var > lib::V.var: @good
+> <- lib::V.var
+> }
+>
+> <-
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> # ................................................................
+>
+> import "library" as lib
+>
+> => function
+> {
+> if lib::V.var < lib::V.var: @good
+> @bad
+> if lib::V.var > lib::V.var: @good
+> <- lib::V.var
+> }
+>
+> <- 0
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> # ................................................................
+>
+> import "library" as lib
+>
+> => function
+> {
+> if lib::V.var < lib::V.var: @good
+> @bad
+> if lib::V.var > lib::V.var: @good
+> <- lib::V.var
+> }
+>
+> <- 0
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> <- 1
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> # ................................................................
+>
+> import "library" as lib
+>
+> => function
+> {
+> if lib::V.var < lib::V.var: @good
+> @bad
+> if lib::V.var > lib::V.var: @good
+> ><
+> }
+>
+> ><
+> {
+> ....................
+> ....................
+> ....................
+> }
+>
+> # ................................................................
+>
+> import "library" as lib
+>
+> => function
+> {
+> if lib::V.var < lib::V.var: @good
+> @bad
+> if lib::V.var > lib::V.var: @good
+> >fixme<
+> }
+> ```
+
 Welcome to **Riscrithm**, a high-level macro-assembly dialect that compiles directly to pure RISC-V assembly.
 
 Riscrithm is built to act as a bridge between the readability of a high-level language and the raw, deterministic control of bare-metal hardware.
