@@ -1,1635 +1,909 @@
 # Riscrithm
 
-### A macro-assembly compiler with slightly fewer bare-metal-related inconveniences.
+**Readable source in. RISC-V assembly out.**
 
-> [!CAUTION]
-> **Riscrithm v2.0 is currently under active development.**
->
-> The core compiler is being rebuilt from the ground up to provide major performance and developer-experience improvements.
->
-> **Backwards compatibility is intentionally broken in v2.0.** Most v1.1 scripts will **not** be compatible with v2.0 without modification.
->
-> If you have active Riscrithm projects, keep them pinned to **v1.1** for now.
->
-> The v2.0 syntax is now finalized and active compiler development has officially started.
+Riscrithm is a small macro-assembly language and compiler written in Go. It gives register math, branches, stack operations, and imports a cleaner syntax while keeping the generated assembly easy to follow. The registers are still yours to manage. At least the paperwork is shorter.
+
+[What it does](#what-it-does) · [Get started](#get-started) · [A quick example](#a-quick-example) · [How it fits together](#how-it-fits-together) · [Reference](#reference) · [Good to know](#good-to-know)
 
 > [!IMPORTANT]
-> **The following code showcases the new Riscrithm v2.0 syntax.**
->
-> It provides an overview of the language's updated syntax, including imports, declarations, type definitions, operators, functions, control flow, and register operations.
->
-> The examples demonstrate the currently established syntax and provide a reference for how Riscrithm v2.0 code is intended to look.
->
-> ```text
-> import "library" as lib
-> import "library" as ...
-> import "library"
->
-> import "library" as lib without {Cs, Vs, As}
-> import "library" as lib without {Cs, As, Ls}
-> import "library" as lib without {As, Vs, Ls}
-> import "library" as ... without {Cs}
-> import "library" as ... without {Vs}
-> import "library" as ... without {As}
-> import "library" as ... without {Ls}
->
-> import "library" without {Cs, Vs, As}
-> import "library" without {Cs, As, Ls}
-> import "library" without {As, Vs, Ls}
-> import "library" without {Cs}
-> import "library" without {Vs}
-> import "library" without {As}
-> import "library" without {Ls}
->
-> from "library" import {Cs} without {Vs, As, Ls}
-> from "library" import {Vs} without {As, Cs, Ls}
-> from "library" import {As} without {Ls}
-> from "library" import {Ls} without {Cs}
->
-> from "library" as lib import {Cs} without {Vs, As, Ls}
-> from "library" as lib import {Vs} without {As, Cs, Ls}
-> from "library" as ... import {As} without {Ls}
-> from "library" as ... import {Ls} without {Cs}
->
-> from "library" as lib import {Cs}
-> from "library" as lib import {Vs}
-> from "library" as ... import {As}
-> from "library" as ... import {Ls}
->
-> from "library" import {C.apples} without {Cs, Vs, As}
-> from "library" import {V.banana} without {Ls, As, Vs}
-> from "library" import {A.orange} without {Cs}
-> from "library" import {L.cherry} without {Vs}
->
-> from "library" import {C.apples, function}
-> from "library" import {V.banana, function}
-> from "library" import {A.orange}
-> from "library" import {L.cherry}
->
-> from "library" import {function, function}
-> from "library" import {function}
->
-> from "library" import {function} without! {dependency}
-> from "library" import {function} without {dependency}
->
-> # ................................
-> ; ................................
->
-> \\\
->
-> using Align of 0
-> using Balig of 0
-> using Linux
->
-> V.apples: [B] = [0, 1, 2, 3]
-> V.banana: [H] = [2;4 .. 100]
-> V.orange: [W] = [1 .. 5]
-> V.cherry: [D] = [0 ** 3]
-> V.apples: [F] = [4.2, 1.337]
->
-> V.apples: S = "................"
-> V.banana: R = '................'
->
-> V.apples: S = "..." ** 42
-> V.banana: R = '...' ** 42
->
-> C.apples: B = {}
-> C.banana: H = {}
-> C.orange: W = {}
-> C.cherry: D = {}
-> C.apples: F = {}
->
-> C.banana: S = {}
-> C.orange: R = {}
->
-> C.apples: [B] = {}
-> C.banana: [H] = {}
-> C.orange: [W] = {}
-> C.cherry: [D] = {}
-> C.apples: [F] = {}
->
-> C.apples: B = B^+
-> C.banana: H = H^+
-> C.orange: W = W^+
-> C.cherry: D = D^+
-> C.apples: F = F^+
->
-> C.apples: B = B^-
-> C.banana: H = H^-
-> C.orange: W = W^-
-> C.cherry: D = D^-
-> C.apples: F = F^-
->
-> A.apples: `x = x
-> A.banana: `t = t
-> A.orange: `f = f
->
-> lib::C.apples: [B] = 42
-> lib::C.banana: [H] = 42
-> lib::C.orange: [W] = 42
-> lib::C.cherry: [D] = 42
-> lib::C.apples: [F] = 42.0
->
-> lib::function (dependency)
-> {
-> ....................
-> ....................
-> @dependency
-> }
->
-> lib::function
-> {
-> ....................
-> ....................
-> @dependency
-> }
->
-> function (dependency)
-> {
-> ....................
-> ....................
-> @dependency
-> }
->
-> => lib::function
->
-> => function
-> {
-> |B| A.reg -> |||
-> |H| A.reg <- |||
-> |W| A.reg <? |||
-> 128 A.reg <- |||
->
-> if V.var == {[B]}: @good
-> if V.var != {[H]}: @good
-> if V.var >= {[W]}: @good
-> if V.var <= {[D]}: @good
-> if V.var == {[F]}: @good
->
-> if V.var == {B}: @good
-> if V.var != {H}: @good
-> if V.var >= {W}: @good
-> if V.var <= {D}: @good
-> if V.var == {F}: @good
->
-> if V.var == {S}: @good
-> if V.var != {R}: @good
->
-> if V.var > V.var: @good
-> @bad
->
-> if V.var < V.var: @good
-> @bad
->
-> !! ....................
-> }
->
-> !! function
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> ## function
-> {
-> A.reg = A.reg + A.reg
-> A.reg = A.reg - A.reg
-> A.reg = A.reg * A.reg
-> A.reg = A.reg / A.reg
-> A.reg = A.reg % A.reg
->
-> A.reg = A.reg & A.reg
-> A.reg = A.reg | A.reg
-> A.reg = A.reg ^ A.reg
->
-> A.reg = ~A.reg
->
-> A.reg = A.reg >> A.reg
-> A.reg = A.reg << A.reg
-> }
->
-> ## function
-> {
-> A.reg = A.reg +. A.reg
-> A.reg = A.reg -. A.reg
-> A.reg = A.reg *. A.reg
-> A.reg = A.reg /. A.reg
-> A.reg = A.reg %. A.reg
-> }
->
-> ## function
-> {
-> A.reg = A.reg + (B)A.reg
-> A.reg = A.reg - (H)A.reg
-> A.reg = A.reg * (W)A.reg
-> A.reg = A.reg / (D)A.reg
-> A.reg = A.reg % (B)A.reg
->
-> A.reg = (B)A.reg & A.reg
-> A.reg = (H)A.reg | A.reg
-> A.reg = (W)A.reg ^ A.reg
->
-> A.reg = ~(B)A.reg
->
-> A.reg = (B)A.reg >> (B)A.reg
-> A.reg = (H)A.reg << (H)A.reg
-> }
->
-> ## function
-> {
-> A.reg = A.reg +. (F)A.reg
-> A.reg = A.reg -. (F)A.reg
-> A.reg = A.reg *. (F)A.reg
-> A.reg = A.reg /. (F)A.reg
-> A.reg = A.reg %. (F)A.reg
->
-> A.reg = (F)A.reg +. A.reg
-> A.reg = (F)A.reg -. A.reg
-> A.reg = (F)A.reg *. A.reg
->
-> A.reg = (F)A.reg +. (F)A.reg
-> A.reg = (F)A.reg /. (F)A.reg
-> A.reg = (F)A.reg %. (F)A.reg
-> }
->
-> function
-> {
-> A.reg^^
-> A.reg++
-> A.reg--
-> A.reg~~
-> }
->
-> function
-> {
-> A.reg += A.reg
-> A.reg -= A.reg
-> A.reg *= A.reg
-> A.reg /= A.reg
-> A.reg %= A.reg
->
-> A.reg &= A.reg
-> A.reg |= A.reg
-> A.reg ^= A.reg
->
-> A.reg <> A.reg
-> }
->
-> function
-> {
-> A.reg +.= A.reg
-> A.reg -.= A.reg
-> A.reg *.= A.reg
-> A.reg /.= A.reg
-> A.reg %.= A.reg
-> }
->
-> function
-> {
-> |B| A.reg ~> C.pointer ? @function
-> |H| A.reg ~> C.pointer ? @function
-> |W| A.reg ~> C.pointer ? @.
-> 128 A.reg ~> C.pointer ? @.
-> }
->
-> function
-> {
-> () V.var -> V.var
-> $$ V.var
-> <- V.var
-> }
->
-> function
-> {
-> |B| A.reg <~ C.pointer
-> |H| A.reg <~ C.pointer
-> 128 A.reg <~ C.pointer
-> }
->
-> # ................................................................
->
-> import "library" as lib
->
-> => function
-> {
-> if lib::V.var < lib::V.var: @good
-> @bad
-> if lib::V.var > lib::V.var: @good
-> <- lib::V.var
-> }
->
-> ()
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> # ................................................................
->
-> import "library" as lib
->
-> => function
-> {
-> if lib::V.var < lib::V.var: @good
-> @bad
-> if lib::V.var > lib::V.var: @good
-> <- lib::V.var
-> }
->
-> () 42
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> # ................................................................
->
-> import "library" as lib
->
-> => function
-> {
-> if lib::V.var < lib::V.var: @good
-> @bad
-> if lib::V.var > lib::V.var: @good
-> <- lib::V.var
-> }
->
-> <-
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> () 37
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> () 42
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> # ................................................................
->
-> import "library" as lib
->
-> => function
-> {
-> if lib::V.var < lib::V.var: @good
-> @bad
-> if lib::V.var > lib::V.var: @good
-> <- lib::V.var
-> }
->
-> <-
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> # ................................................................
->
-> import "library" as lib
->
-> => function
-> {
-> if lib::V.var < lib::V.var: @good
-> @bad
-> if lib::V.var > lib::V.var: @good
-> <- lib::V.var
-> }
->
-> <- 0
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> # ................................................................
->
-> import "library" as lib
->
-> => function
-> {
-> if lib::V.var < lib::V.var: @good
-> @bad
-> if lib::V.var > lib::V.var: @good
-> <- lib::V.var
-> }
->
-> <- 0
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> <- 1
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> # ................................................................
->
-> import "library" as lib
->
-> => function
-> {
-> if lib::V.var < lib::V.var: @good
-> @bad
-> if lib::V.var > lib::V.var: @good
-> ><
-> }
->
-> ><
-> {
-> ....................
-> ....................
-> ....................
-> }
->
-> # ................................................................
->
-> import "library" as lib
->
-> => function
-> {
-> if lib::V.var < lib::V.var: @good
-> @bad
-> if lib::V.var > lib::V.var: @good
-> >fixme<
-> }
-> ```
+> This README documents **v1.1**. The **v2.0** compiler is being rebuilt with a new syntax and intentionally breaks compatibility. Keep existing projects pinned to v1.1 until you are ready to migrate. A short v2 preview lives at the end.
 
-Welcome to **Riscrithm**, a high-level macro-assembly dialect that compiles directly to pure RISC-V assembly.
+## What it does
 
-Riscrithm is built to act as a bridge between the readability of a high-level language and the raw, deterministic control of bare-metal hardware.
+- Compiles readable register expressions into RISC-V assembly text.
+- Adds macros, file imports, conditional jumps, and compact register shorthands.
+- Expands stack and address-based memory operations.
+- Lets you drop into raw assembly for a line or a whole block.
+- Offers optional local optimizations and checks common source-layout mistakes.
 
-Riscrithm provides several conveniences:
+## Get started
 
-- **File modularity** for reusable packages and utility libraries.
-- **Cleaner control flow** with inline conditionals and subroutine returns.
-- **Strict compile-time validation** for structural safety.
-- **Optimization passes** for dead code and identity math elimination.
-- **Expressive system and interrupt controls** replacing raw opcodes.
-- **Automatic stack pointer management** and heap memory operations.
-- **Readable assignment, compound math, and bitwise mutators.**
-- **Raw assembly bypassing** for specialized hardware instructions.
+> [!NOTE]
+> Building the compiler requires **Go 1.21+**. It uses only the Go standard library. Assembling or running the output requires a separate RISC-V toolchain or simulator.
 
-Riscrithm intentionally keeps its abstractions transparent while making common bare-metal operations easier to express.
+With the standalone compiler source saved as `main.go`, build the executable:
 
-It is designed for programmers who want to write efficient hardware instructions without repeatedly typing manual XOR swaps and tracking exact stack pointer offsets.
-
-Because apparently writing `xor x1, x1, x2` three times in a row was considered a highly productive way to spend an afternoon.
-
----
-
-## 1. Installation and CLI
-
-Riscrithm is used through its command-line compiler.
-
-To compile a Riscrithm source file, use:
-
-```text
-riscrithm "source_code_file" "assembly_target_file" [-o/--optimize]
+```bash
+go build -o riscrithm main.go
 ```
 
-The arguments are:
+Compile a source file into an assembly file:
 
-| Argument | Description |
-|---|---|
-| `source_code_file` | The Riscrithm input file. |
-| `assembly_target_file` | The generated `.s` assembly file. If the file does not exist, the compiler creates it automatically. |
-| `-o`, `--optimize` | Enables the comprehensive optimization pass. |
-
-For example:
-
-```text
-riscrithm "main.txt" "main.s"
+```bash
+./riscrithm main.txt main.s
+./riscrithm main.txt main.s --optimize
 ```
 
-Or with optimization enabled:
+The argument order is **source, output, optional optimization flag**. `-o` is the short form of `--optimize`; it enables optimization rather than naming the output file. Source filenames can use any extension.
 
-```text
-riscrithm "main.txt" "main.s" --optimize
-```
+## A quick example
 
-The compiler produces standard RISC-V assembly that can then be passed to the appropriate assembler, linker, simulator, or hardware toolchain.
-
----
-
-## 2. File Structure and Entrypoints
-
-Every main Riscrithm source file must declare its target section and entrypoint at the top of the file.
-
-These directives, together with macro definitions and import statements, are the only lines allowed to exist completely unindented outside of a label block.
-
-### Header
-
-The `header` directive selects the target assembly section.
-
-```text
-header default
-```
-
-For example:
-
-```text
-header default
-```
-
-translates to:
-
-```asm
-.section .text
-```
-
-### Entrypoint
-
-The `entrypoint` directive defines where program execution begins.
-
-```text
-entrypoint main
-```
-
-This translates to:
-
-```asm
-.globl main
-```
-
-A minimal Riscrithm program therefore begins with:
-
-```text
-header default
-entrypoint main
-```
-
----
-
-## 3. Imports and Modular Files
-
-Riscrithm supports modular source files, making it possible to split projects into reusable packages and utility libraries.
-
-### 3.1 Global Imports
-
-Use `import` to include an entire source file in the current compilation unit.
-
-```text
-import "packages/display_utilities.txt"
-```
-
-The imported file becomes part of the unified compilation unit.
-
-### 3.2 Selective Imports
-
-Use `from ... import` to import only specific label symbols from another source file.
-
-```text
-from "libraries/math_helpers.txt" import qux, quux
-from "libraries/math_helpers.txt" import corge
-```
-
-Selective imports allow individual labels to be reused without importing every symbol from the source file.
-
-### Important Rule
-
-Imported modules and secondary source files must **not** contain a `header` or `entrypoint` directive.
-
-These files function strictly as modular components.
-
-Only the main compilation unit should define the target section and program entrypoint.
-
----
-
-## 4. Definitions and Comments
-
-### 4.1 Macros
-
-Text-replacement macros are declared using the `define` keyword.
-
-Macros are useful for aliasing registers, creating constants, or defining short inline code fragments.
-
-```text
-define foo = x1
-define bar = x2
-define baz = x3
-define qux = x4
-define quux = 10
-define corge = 20
-define clearFoo = foo ^^
-```
-
-Whenever the parser encounters `foo`, it replaces it with `x1` before processing logical expressions.
-
-For example:
-
-```text
-define foo = x1
-
-main:
-    load foo = 10
-```
-
-is processed as though the register alias had been written directly.
-
-### 4.2 Comments
-
-Comments are written using the `#` symbol.
-
-The compiler strips everything following a `#` on a line.
-
-```text
-load foo = 10 # Initialize foo
-```
-
-Comments can therefore be placed inline without affecting generated assembly.
-
----
-
-## 5. Compiler Validation
-
-Writing bare-metal assembly can be error-prone and tedious to debug.
-
-Riscrithm performs a compile-time validation pass before generating assembly.
-
-The compiler checks for several structural problems and stops compilation when invalid code is detected.
-
-### Missing Header
-
-The main source file must contain a `header` directive.
-
-Without a header, the compiler cannot initialize the target assembly section.
-
-### Invalid Entrypoint
-
-The symbol specified by `entrypoint` must resolve to a valid, defined label.
-
-### Global Duplicate Labels
-
-All unified modules are scanned to ensure that no label is declared more than once.
-
-### Undefined Jumps and Branches
-
-Any jump or branch targeting a label that does not exist causes compilation to fail.
-
-### Unreachable Code
-
-Basic control-flow analysis detects dead code following terminating instructions such as `return`.
-
-For example:
-
-```text
-example:
-    return
-    foo ++
-```
-
-The instruction after `return` is unreachable.
-
-### Duplicate File Imports
-
-Importing the exact same file path multiple times is detected and reported.
-
-### Duplicate Label Imports
-
-Importing the same specific label more than once causes a syntax validation failure.
-
-These validation checks are performed before assembly output is generated.
-
----
-
-## 6. Labels, Indentation, and Raw Blocks
-
-Riscrithm uses indentation to define execution blocks.
-
-### 6.1 Standard Labels
-
-Labels define execution blocks and must end with a colon.
-
-Labels must not be indented.
-
-Instructions inside a label block must be indented using spaces or tabs.
-
-```text
-main:
-    load foo = quux
-    move bar = foo
-```
-
-Leaving an instruction unindented outside of a valid block results in a `SyntaxError`.
-
-### 6.2 Raw Assembly Labels
-
-To completely bypass the Riscrithm preprocessor and write raw RISC-V assembly, prefix a label with `!!`.
-
-```text
-!!raw_block:
-    li x1, 10
-    variable ^^ # This stays exactly as written!
-```
-
-The compiler removes the `!!` prefix from the label and passes the contents of the block through without processing.
-
-Macros and Riscrithm shorthands are not expanded inside raw blocks.
-
-### 6.3 Inline Raw Assembly
-
-If only a single instruction needs to bypass the compiler, use the `!!` prefix directly on an indented instruction.
-
-```text
-process_data:
-    load foo = 5
-    !!addi x1, x1, 10
-    foo ++
-```
-
-The prefixed instruction is emitted directly as raw assembly.
-
-This is useful for specialized instructions that are not represented by the Riscrithm syntax.
-
----
-
-## 7. System and Interrupt Controls
-
-Riscrithm provides readable keywords for common system and interrupt instructions.
-
-| Riscrithm | RISC-V Assembly | Description |
-|---|---|---|
-| `interrupt.u` | `uret` | User-mode trap return |
-| `interrupt.s` | `sret` | Supervisor-mode trap return |
-| `interrupt.m` | `mret` | Machine-mode trap return |
-| `wait` | `wfi` | Wait for interrupt |
-| `trap` | `ebreak` | Debugger trap |
-| `halt` | `ecall` | System environment call / halt |
-| `...` | `nop` | No-operation |
-
-### Example
-
-```text
-handle_system_events:
-    wait
-    interrupt.u
-```
-
-These keywords provide readable names for common low-level system operations without requiring raw opcode syntax.
-
----
-
-## 8. Branching and Conditionals
-
-Riscrithm handles common branch mappings automatically.
-
-### 8.1 Unconditional Jumps
-
-To unconditionally jump to a label, use the `@` prefix.
-
-```text
-execute_jump:
-    @some_label
-```
-
-This compiles to:
-
-```asm
-j some_label
-```
-
-### 8.2 Conditional Branches
-
-Conditional branches use an inline ternary-like syntax.
-
-```text
-compare_registers:
-    if foo == bar @true_block else @false_block
-    if foo > baz @greater_block else @lesser_block
-```
-
-The compiler maps supported comparisons to the appropriate RISC-V branch instructions such as:
-
-- `beq`
-- `bne`
-- `blt`
-- `bge`
-
-The compiler also handles register ordering for asymmetric comparisons such as `>` and `<=`.
-
-### 8.3 Else-less If Statements
-
-Conditional branches do not require an `else` target.
-
-```text
-guard_check:
-    if foo == bar @true_block
-```
-
-This is useful for guard clauses and simple conditional jumps.
-
----
-
-## 9. Subroutines and Loops
-
-Riscrithm avoids high-level `while` and `for` constructs in order to preserve bare-metal transparency.
-
-Instead, loops are constructed using labels, jumps, and conditional branches.
-
-### 9.1 Loops
-
-#### Infinite Loop
-
-```text
-infinite_loop:
-    foo ++
-    @infinite_loop
-```
-
-#### Conditional Loop
-
-```text
-loop_setup:
-    load foo = 0
-    load bar = 10
-
-loop_start:
-    if foo == bar @loop_end else @loop_body
-
-loop_body:
-    foo ++
-    @loop_start
-
-loop_end:
-    halt
-```
-
-This keeps the generated control flow explicit and predictable.
-
-### 9.2 Subroutine Returns
-
-Labels can act as reusable subroutines using the `return` statement.
-
-```text
-multiply_logic:
-    foo *= bar
-    return
-```
-
-The `return` statement compiles directly to the native RISC-V `ret` instruction.
-
----
-
-## 10. Operations and Mutators
-
-Riscrithm supports immediate assignments and compound mathematical expressions.
-
-When an integer literal is used where an immediate instruction is available, the compiler automatically selects the appropriate `i`-suffixed RISC-V instruction, such as `addi` or `xori`.
-
-### 10.1 Load and Move
-
-```text
-assign_values:
-    load foo = 100
-    move bar = foo
-```
-
-These correspond to:
-
-```asm
-li foo, 100
-mv bar, foo
-```
-
-### 10.2 Compound Math
-
-```text
-apply_math:
-    foo += 5
-    bar *= baz
-    foo <<= 2
-```
-
-The compiler maps these expressions to the corresponding RISC-V instructions.
-
-### 10.3 Increments and Decrements
-
-```text
-adjust_counters:
-    foo ++
-    bar --
-```
-
-For example:
-
-```text
-foo ++
-```
-
-compiles to:
-
-```asm
-addi foo, foo, 1
-```
-
-and:
-
-```text
-bar --
-```
-
-compiles to:
-
-```asm
-addi bar, bar, -1
-```
-
-### 10.4 The Clear Shorthand (`^^`)
-
-The `^^` operator clears a register by XORing it with itself.
-
-```text
-reset_state:
-    foo ^^
-```
-
-This translates to:
-
-```asm
-xor foo, foo, foo
-```
-
-The resulting register value is zero.
-
-### 10.5 Swapping Variables
-
-The `swap` command exchanges the contents of two registers without requiring a third temporary register.
-
-```text
-perform_swap:
-    foo swap bar
-```
-
-This translates to:
-
-```asm
-xor foo, foo, bar
-xor bar, foo, bar
-xor foo, foo, bar
-```
-
-No temporary register required.
-
-Because apparently three XOR instructions are preferable to admitting that temporary storage exists.
-
----
-
-## 11. Memory Operations
-
-Riscrithm provides explicit stack and heap expressions for memory operations.
-
-Memory operations use data-width indicators:
-
-- `.b` for byte / 8-bit.
-- `.w` for word / 32-bit.
-- `.d` for double-word / 64-bit.
-
-### 11.1 Stack Operations
-
-Stack expressions automatically manage the hardware stack pointer (`sp`) according to the selected data width.
-
-#### Push (`->`)
-
-Push operations decrement `sp` by the relative width before storing the register value.
-
-```text
-save_context:
-    foo -> stack.w
-```
-
-For a word-sized operation, the stack pointer is decremented by 4 bytes before storing the value.
-
-#### Pop (`<-`)
-
-Pop operations load from the current stack address and then increment `sp` by the relative width.
-
-```text
-restore_context:
-    bar <- stack.d
-```
-
-A double-word operation therefore increments `sp` by 8 bytes after loading.
-
-#### Peek (`=`)
-
-The `=` stack expression reads from the current stack address without modifying `sp`.
-
-```text
-check_top:
-    baz = stack.b
-```
-
-This loads a byte from the top of the stack without moving the stack pointer.
-
-### 11.2 Heap Operations
-
-Heap operations require an explicit base address register using `&` pointer notation.
-
-#### Store (`->`)
-
-```text
-write_memory:
-    foo -> heap.w from &bar
-```
-
-This stores the value in `foo` at the address contained in `bar`.
-
-#### Load (`<-`)
-
-```text
-read_memory:
-    baz <- heap.b from &foo
-```
-
-This loads a byte from the address contained in `foo` into `baz`.
-
----
-
-## 12. The Optimizer (`-o`)
-
-Riscrithm uses a lightweight two-pass compiler pipeline.
-
-### Pass 1: Sanitization and Validation
-
-The first pass:
-
-1. Evaluates module imports.
-2. Resolves source layout.
-3. Performs structural validation.
-4. Checks labels and control-flow targets.
-5. Prepares the unified compilation unit.
-
-### Pass 2: Parsing and Optimization
-
-The second pass:
-
-1. Replaces macros.
-2. Processes Riscrithm shorthands.
-3. Applies enabled optimizations.
-4. Generates RISC-V assembly.
-
-When `-o` or `--optimize` is supplied, the optimizer applies several transformations.
-
-### 12.1 Dead Assignment Elimination
-
-Consecutive redundant assignments or useless load/move operations targeting the same register are removed.
-
-#### Source Input
-
-```text
-load foo = 128
-load foo = 128
-```
-
-#### Optimized Output
-
-```asm
-li x1, 128
-```
-
-### 12.2 Identity Math Elimination and Transformation
-
-Mathematical expressions that do not change a value are optimized according to the destination context.
-
-#### Self-Identity Elimination
-
-If a register performs an identity operation on itself, the instruction can be removed.
-
-#### Source Input
-
-```text
-foo = foo + 0
-bar = bar * 1
-```
-
-#### Optimized Output
-
-```text
-# Instructions deleted entirely
-```
-
-#### Cross-Register Identity Transformation
-
-When the source and destination registers differ, the expression can be converted into a register copy using `mv`.
-
-#### Source Input
-
-```text
-foo = bar + 0
-foo = bar * 1
-```
-
-#### Optimized Output
-
-```asm
-mv x1, x2
-mv x1, x2
-```
-
-### 12.3 Strength Reduction
-
-Multiplication or division by a constant power of two can be rewritten as a logical bit shift.
-
-#### Source Input
-
-```text
-foo = bar * 2
-baz = foo / 8
-```
-
-#### Optimized Output
-
-```asm
-slli x1, x2, 1
-srli x3, x1, 3
-```
-
-This replaces multiplication and division with equivalent shift operations where the transformation is applicable.
-
----
-
-## 13. Clean, Ready-to-Use Output
-
-The assembly generated by Riscrithm is automatically formatted for readability.
-
-The resulting `.s` file is pretty-printed so that:
-
-- Instructions inside execution blocks are consistently indented.
-- Labels remain flush against the left margin.
-- Generated instructions remain easy to read.
-- The output can be passed directly to standard RISC-V development tools.
-
-The generated assembly can therefore be used with hardware simulators, assemblers, binary toolchains, linkers, and desktop debuggers without requiring manual formatting.
-
----
-
-## 14. Naming Conventions
-
-Riscrithm encourages consistent naming conventions to keep projects easy to scan.
-
-### Variables and Registers
-
-Use **camelCase** for register aliases and dynamic variables.
-
-Examples:
-
-```text
-firstNum
-addressRegister
-stackOffset
-```
-
-### Labels and Code Blocks
-
-Use **snake_case** for jump locations, execution blocks, loop boundaries, and subroutines.
-
-Examples:
-
-```text
-loop_start
-on_true
-error_handler
-```
-
-### Constants and Literals
-
-Use **SCREAMING_SNAKE_CASE** for static configuration values, macro constants, and invariant boundaries.
-
-Examples:
-
-```text
-DEFAULT_HEADER
-MAX_BUFFER_SIZE
-IMM_VALUE
-```
-
-These conventions provide a visual distinction between registers, control-flow targets, and constants.
-
----
-
-## 15. Complete Operator and Expression Reference
-
-### 15.1 Core Expressions and Memory Operators
-
-| Riscrithm Syntax | Category | Internal Expansion / Behavior | Target RISC-V Assembly |
-|---|---|---|---|
-| `load <reg> = <imm>` | Assignment | Direct immediate assignment | `li reg, imm` |
-| `move <reg1> = <reg2>` | Assignment | Register-to-register copy | `mv reg1, reg2` |
-| `<reg1> swap <reg2>` | Value Exchange | Triple-XOR non-destructive swap | `xor reg1, reg1, reg2`<br>`xor reg2, reg1, reg2`<br>`xor reg1, reg1, reg2` |
-| `<reg> -> stack.[b/w/d]` | Stack Memory | Decrement pointer, store byte/word/double | `addi sp, sp, -offset`<br>`s[b/w/d] reg, 0(sp)` |
-| `<reg> <- stack.[b/w/d]` | Stack Memory | Load byte/word/double, increment pointer | `l[b/w/d] reg, 0(sp)`<br>`addi sp, sp, offset` |
-| `<reg> = stack.[b/w/d]` | Stack Memory | Peek value from top of stack | `l[b/w/d] reg, 0(sp)` |
-| `<reg1> <- heap.[b/w/d] from &<reg2>` | Heap Memory | Base-register memory read | `l[b/w/d] reg1, 0(reg2)` |
-| `<reg1> -> heap.[b/w/d] from &<reg2>` | Heap Memory | Base-register memory write | `s[b/w/d] reg1, 0(reg2)` |
-
-### 15.2 Math and Bitwise Operators
-
-| Riscrithm Syntax | Operator Type | Evaluated Expression |
-|---|---|---|
-| `<reg> ++` | Self Operator | `<reg> = <reg> + 1` |
-| `<reg> --` | Self Operator | `<reg> = <reg> - 1` |
-| `<reg> ^^` | Self Operator | `<reg> = <reg> ^ <reg>` (Fast Register Clear) |
-| `<reg> += <val>` | Compound Tag | `<reg> = <reg> + <val>` |
-| `<reg> -= <val>` | Compound Tag | `<reg> = <reg> - <val>` |
-| `<reg> *= <val>` | Compound Tag | `<reg> = <reg> * <val>` |
-| `<reg> /= <val>` | Compound Tag | `<reg> = <reg> / <val>` |
-| `<reg> %= <val>` | Compound Tag | `<reg> = <reg> % <val>` |
-| `<reg> <<= <val>` | Compound Tag | `<reg> = <reg> << <val>` |
-| `<reg> >>= <val>` | Compound Tag | `<reg> = <reg> >> <val>` |
-| `<reg1> = <reg2> + <val>` | Base Arithmetic | Addition with immediate realignment |
-| `<reg1> = <reg2> - <val>` | Base Arithmetic | Subtraction with immediate realignment |
-| `<reg1> = <reg2> & <val>` | Base Arithmetic | Bitwise AND with immediate realignment |
-| `<reg1> = <reg2> \| <val>` | Base Arithmetic | Bitwise OR with immediate realignment |
-| `<reg1> = <reg2> ^ <val>` | Base Arithmetic | Bitwise XOR with immediate realignment |
-| `<reg1> = <reg2> << <val>` | Base Arithmetic | Logical shift left with immediate realignment |
-| `<reg1> = <reg2> >> <val>` | Base Arithmetic | Logical shift right with immediate realignment |
-| `<reg1> = <reg2> * <val>` | Base Arithmetic | Hardware multiplication (M-extension) |
-| `<reg1> = <reg2> / <val>` | Base Arithmetic | Hardware division (M-extension) |
-| `<reg1> = <reg2> % <val>` | Base Arithmetic | Hardware remainder (M-extension) |
-
----
-
-## 16. Complete Examples
-
-### 16.1 Source Code
-
-#### Example One
+Save this as `main.txt`:
 
 ```text
 header default
 entrypoint main
 
-define foo = x1
-define bar = x2
-define baz = x3
+define countReg = t0
+define stepReg = t1
+define sumReg = t2
 
 main:
-    load foo = 10
-    load bar = 20
-
-    foo += 5
-    bar += 2
-
-    baz = foo + bar
-
-    halt
-```
-
-#### Example Two: Memory and Swapping
-
-```text
-header default
-entrypoint main
-
-define foo = x1
-define bar = x2
-
-main:
-    load foo = 42
-    load bar = 99
-
-    foo -> stack.w
-    bar -> stack.w
-
-    foo <- stack.w
-    bar <- stack.w
-
-    foo swap bar
-
-    halt
-```
-
-#### Example Three: Math and Conditionals
-
-```text
-header default
-entrypoint main
-
-define foo = x1
-define bar = x2
-
-main:
-    load foo = 7
-    load bar = 7
-
-    foo = foo * 1
-    bar = bar + 0
-
-    foo = bar * 1
-
-    foo *= 8
-    bar /= 2
-
-    if foo == bar @equal_block else @not_equal_block
-
-equal_block:
-    foo ++
-    halt
-
-not_equal_block:
-    foo --
+    load countReg = 10
+    load stepReg = 20
+    countReg += 5
+    sumReg = countReg + stepReg
     trap
 ```
 
-#### Example Four: Modularity
-
-`orange_banana.txt`
-
-```text
-!!banana:
-    addi x1, x1, 10
-    ret
-
-orange:
-    bar >>= 1
-    bar &= 10
-    return
-
-apple:
-    if foo < bar @banana
-```
-
-`horse_battery.txt`
-
-```text
-qux:
-    foo swap bar
-    foo ^^
-
-quux:
-    !!li x1, 10
-    bar swap foo
-    bar --
-    foo ++
-```
-
-`main.txt`
-
-```text
-header default
-entrypoint main
-
-import "libraries/orange_banana.txt"
-from "libraries/horse_battery.txt" import qux, quux
-
-define foo = x1
-define bar = x2
-define baz = x3
-
-main:
-    load foo = qux
-    load bar = quux
-
-    foo += bar
-    foo -> heap.w from &baz
-
-    halt
-
-    if foo == bar @qux else @quux
-
-    @orange
-    ...
-    @banana
-```
-
----
-
-### 16.2 Optimized RISC-V Assembly Output
-
-#### Example One
+Run `./riscrithm main.txt main.s`. The result is:
 
 ```asm
 .section .text
 .globl main
 main:
-   li x1, 10
-   li x2, 20
-   addi x1, x1, 5
-   addi x2, x2, 2
-   add x3, x1, x2
-   ecall
-```
-
-#### Example Two
-
-```asm
-.section .text
-.globl main
-main:
-   li x1, 42
-   li x2, 99
-   addi sp, sp, -4
-   sw x1, 0(sp)
-   addi sp, sp, -4
-   sw x2, 0(sp)
-   lw x1, 0(sp)
-   addi sp, sp, 4
-   lw x2, 0(sp)
-   addi sp, sp, 4
-   xor x1, x1, x2
-   xor x2, x1, x2
-   xor x1, x1, x2
-   ecall
-```
-
-#### Example Three: Strength Reduction and Identity Math Elimination
-
-```asm
-.section .text
-.globl main
-main:
-   li x1, 7
-   li x2, 7
-   mv x1, x2
-   slli x1, x1, 3
-   srli x2, x2, 1
-   beq x1, x2, equal_block
-   j not_equal_block
-
-equal_block:
-   addi x1, x1, 1
-   ecall
-
-not_equal_block:
-   addi x1, x1, -1
+   li t0, 10
+   li t1, 20
+   addi t0, t0, 5
+   add t2, t0, t1
    ebreak
 ```
 
-#### Example Four
+That leaves `35` in `t2` before the debugger trap. Riscrithm writes the assembly; your target environment handles the next step.
 
-```asm
-.section .text
-.globl main
-main:
-   load x1 = qux
-   load x2 = quux
-   add x1, x1, x2
-   sw x1, 0(x3)
-   ecall
-   beq x1, x2, qux
-   j quux
-   j orange
-   nop
-   j banana
+## How it fits together
 
-banana:
-   addi x1, x1, 10
-   ret
+### Start with the file layout
 
-orange:
-   srli x2, x2, 1
-   andi x2, x2, 10
-   ret
-
-apple:
-   blt x1, x2, banana
-
-qux:
-   xor x1, x1, x2
-   xor x2, x1, x2
-   xor x1, x1, x2
-   xor x1, x1, x1
-
-quux:
-   li x1, 10
-   xor x2, x2, x1
-   xor x1, x2, x1
-   xor x2, x2, x1
-   addi x2, x2, -1
-   addi x1, x1, 1
-```
-
----
-
-## 17. Design Philosophy
-
-Riscrithm is designed to provide a readable, high-level interface over raw RISC-V assembly generation.
-
-The compiler deliberately bridges readable expressions such as:
+The first two nonempty, non-comment directives in the main file are:
 
 ```text
-if foo == bar
-foo += 5
+header default
+entrypoint main
 ```
 
-to their corresponding hardware instructions such as:
+`header default` emits `.section .text`. A custom header, such as `header .section .text`, emits the text after `header`. `entrypoint main` exports `main` through `.globl main`; define that label and keep your linker or simulator entry configuration aligned with it.
 
-```asm
-beq
-addi
+Keep labels flush left and end them with `:`. Indent instructions with spaces or tabs. Put definitions and imports at the top level. A `#` begins a comment, and everything after it on that line is removed.
+
+### Give registers readable names
+
+```text
+define countReg = t0
+define LIMIT = 10
+
+main:
+    load countReg = LIMIT
+    countReg --
 ```
 
-without introducing a magical runtime environment between the source code and the processor.
+Definitions are text replacements, applied before instruction translation. Use distinct macro names that do not overlap with other names, and keep expansions independent of other macros.
 
-The architecture separates responsibilities into logical stages:
+Use `camelCase` for aliases, `snake_case` for labels, and `UPPERCASE` for constants if you want a consistent visual rhythm. The processor will survive your naming choices, but your future self may have preferences.
 
-1. **Modularity and file unification.**
-2. **Structural validation and safety checks.**
-3. **Preprocessor definitions.**
-4. **Instruction parsing and optimization.**
-
-Riscrithm does not attempt to replace LLVM infrastructure, C compilers, or full-scale language toolchains.
-
-It simply makes writing pure bare-metal assembly less tedious to construct by hand.
-
-Because apparently memorizing manual branch destinations and manually performing bit-shift reductions was not enough of a headache.
-
----
-
-## 18. Limitations
-
-Riscrithm intentionally remains a lightweight abstraction over bare RISC-V assembly.
-
-The current **v1.1 implementation** does not provide:
-
-- Automatic register allocation. Registers must be aliased manually.
-- Complex native floating-point math extensions.
-- Custom linker script generation.
-- Automated struct layouts or data-structure alignment.
-- Arbitrary-depth nested loops without explicit labels.
-- A stable v1-to-v2 compatibility layer.
-
-The v2.0 compiler is currently being rebuilt and is intentionally breaking backwards compatibility with v1.1.
-
-The goal is not to hide the processor.
-
-The processor is exactly what we are here for.
-
----
-
-## 19. Version 2.0 Development
-
-Riscrithm v2.0 is currently under active development.
-
-The v2.0 compiler is being rebuilt from the ground up with the goal of improving:
-
-- Compiler performance.
-- Developer experience.
-- Syntax consistency.
-- Compiler architecture.
-- Error handling.
-- Long-term maintainability.
-
-The v2.0 syntax has been finalized, and implementation work is now underway.
-
-### Backwards Compatibility
-
-Compatibility with v1.1 is **not maintained**.
-
-Existing v1.1 projects should remain pinned to v1.1 until they are migrated to the new compiler.
-
-The breaking changes are intentional and are a consequence of removing accumulated technical debt from the previous compiler architecture.
-
-In other words, the compiler has reached the traditional software-engineering milestone where the only reasonable solution is to rebuild the thing and pretend the previous version was a learning experience.
-
----
-
-## 20. Final Example
-
-A compact Riscrithm program can therefore look like this:
+### Build loops from labels
 
 ```text
 header default
 entrypoint main
 
-define foo = x1
-define bar = x2
-
 main:
-    load foo = 10
-    load bar = 20
+    load t0 = 0
+    load t1 = 10
 
-    foo += bar
+count_loop:
+    if t0 == t1 @done
+    t0 ++
+    @count_loop
 
-    halt
+done:
+    trap
 ```
 
-With optimization enabled:
+Conditions compare registers. An `if` without `else` falls through when false. With `else`, it branches to one of the two named labels:
 
 ```text
-riscrithm "main.txt" "main.s" --optimize
+    if t0 < t1 @less else @not_less
 ```
 
-Riscrithm produces clean RISC-V assembly while retaining explicit control over registers, memory, branching, and hardware instructions.
+### Split out reusable labels
 
-A small language for doing the things bare-metal programming has spent decades making unnecessarily verbose.
+Import a whole file or choose labels from one:
+
+```text
+import "helpers.txt"
+from "other_helpers.txt" import tick, reset_counter
+```
+
+Only the main file gets `header` and `entrypoint`. Imported files contain reusable labels and their instructions. Import paths are resolved from the compiler's working directory. Include any labels your selected blocks depend on, and avoid circular imports.
+
+For example, `helpers.txt` can contain:
+
+```text
+tick:
+    t0 ++
+    return
+```
+
+A main file can call it with a raw RISC-V call instruction:
+
+```text
+header default
+entrypoint main
+
+from "helpers.txt" import tick
+
+main:
+    load t0 = 0
+    !!jal ra, tick
+    trap
+```
+
+`@tick` is a jump; `jal ra, tick` also sets a return address. Manage return addresses and register preservation when your calls need them.
+
+### Use raw assembly where it helps
+
+Prefix one instruction with `!!`, or prefix a label to make its whole block raw:
+
+```text
+main:
+    !!mv t1, t0
+    @native_block
+
+!!native_block:
+    addi t1, t1, 1
+    ebreak
+```
+
+Raw instructions bypass macro and shorthand expansion. Source comment removal and whitespace cleaning still apply.
+
+## Reference
+
+### Register operations
+
+| Source | Assembly or effect |
+| --- | --- |
+| `load t0 = 42` | `li t0, 42` |
+| `!!mv t1, t0` | A direct register copy using native assembly. |
+| `t0 ++`, `t0 --` | Add or subtract one. |
+| `t0 ^^` | Clear the register with `xor t0, t0, t0`. |
+| `t0 swap t1` | Exchange two distinct registers with three XOR instructions. |
+| `t0 = t1 + t2` | Register arithmetic. |
+| `t0 = t1 + 5` | Use an immediate instruction where available. |
+| `t0 += 5` | Expand to `t0 = t0 + 5`. |
+
+Use `load` for nonnegative decimal literals. For other assembler literal forms, write the native instruction, such as `!!li t0, -1`.
+
+| Operation | Operators | Notes |
+| --- | --- | --- |
+| Addition and subtraction | `+`, `-` | Register operands or supported immediate forms. |
+| Bitwise operations | `&`, `\|`, `^` | Register operands or supported immediate forms. |
+| Logical shifts | `<<`, `>>` | Register or immediate shift counts. |
+| Multiplication, division, remainder | `*`, `/`, `%` | Use register operands; the emitted instructions need the matching target extensions. |
+| Compound assignment | `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `\|=`, `^=`, `<<=`, `>>=` | Apply the corresponding operation to the destination register. |
+
+Keep immediate values within the target instruction's range. When using optimization, positive power-of-two literals in multiplication or division can be rewritten as shifts.
+
+### Branches
+
+| Source | Emitted instruction |
+| --- | --- |
+| `@target` | `j target` |
+| `if t0 == t1 @target` | `beq t0, t1, target` |
+| `if t0 != t1 @target` | `bne t0, t1, target` |
+| `if t0 < t1 @target` | `blt t0, t1, target` |
+| `if t0 >= t1 @target` | `bge t0, t1, target` |
+| `if t0 > t1 @target` | `blt t1, t0, target` |
+| `if t0 <= t1 @target` | `bge t1, t0, target` |
+
+Add `else @other_target` to emit a jump for the false path. Ordering comparisons use the signed RISC-V branch forms shown above.
+
+### Stack and memory
+
+| Source | Effect |
+| --- | --- |
+| `t0 -> stack.w` | Decrement `sp` by four, then store a word. |
+| `t0 <- stack.w` | Load a word, then increment `sp` by four. |
+| `t0 = stack.w` | Read the top word without moving `sp`. |
+| `t0 -> heap.w from &t1` | Store a word at the address in `t1`. |
+| `t0 <- heap.w from &t1` | Load a word from the address in `t1`. |
+
+Width suffixes are `.b` for one byte, `.w` for four bytes, and `.d` for eight bytes. Loads use `lb`, `lw`, or `ld`; stores use `sb`, `sw`, or `sd`. Byte and word loads use the signed load forms.
+
+Initialize a valid stack pointer and valid memory addresses in your target environment. `heap` is an address-based load/store shorthand; it does not allocate memory. Stack operations adjust `sp` by exactly the selected width, so maintain the alignment required by your target and calling convention.
+
+### System instructions
+
+| Source | Assembly |
+| --- | --- |
+| `return` | `ret` |
+| `trap` | `ebreak` |
+| `wait` | `wfi` |
+| `halt` | `ecall` |
+| `interrupt.m`, `interrupt.s`, `interrupt.u` | `mret`, `sret`, `uret` |
+| `...` | `nop` |
+
+`halt` emits an environment call. Whether that exits, traps, or invokes a service depends on the runtime and register setup. Interrupt returns and `wait` also depend on the target's privilege mode and supported instructions.
+
+### Optional optimization
+
+Append `-o` or `--optimize` to enable local rewrites:
+
+| Source pattern | Rewrite |
+| --- | --- |
+| Consecutive identical loads | Keep one load. |
+| `t0 = t0 + 0`, `t0 = t0 * 1` | Remove the identity operation. |
+| `t0 = t1 + 0`, `t0 = t1 * 1` | Emit a register copy. |
+| `t0 = t1 * 8` | Emit `slli t0, t1, 3`. |
+| `t0 = t1 / 8` | Emit `srli t0, t1, 3`. |
+
+Subtraction by zero and division by one receive the same identity treatment. These are local simplifications, rather than whole-program optimization.
+
+> [!CAUTION]
+> Power-of-two division is rewritten as a **logical right shift**. Choose optimization with your value ranges and signedness in mind; shifting a negative value does not behave like signed division.
+
+## Good to know
+
+### The output still belongs to your toolchain
+
+- The compiler checks source layout, the declared entrypoint, duplicate labels, duplicate imports, direct jump targets, and instructions immediately following a `return`.
+- Register allocation, calling conventions, target instruction support, memory setup, assembly, and linking remain under your control.
+- Keep generated assembly in your review loop, particularly when using raw instructions or optimization.
+- The output path is written as an assembly text file. Choose it deliberately, since an existing file at that path is replaced.
+
+### A peek at v2
+
+The v2 rewrite introduces a different syntax for typed declarations, namespaces, imports, register aliases, functions, and control flow. The goals include more consistent syntax, improved error handling, and a cleaner compiler architecture.
+
+<details>
+<summary>Show a small v2 syntax preview</summary>
+
+This is a syntax preview, not a program for the v1.1 compiler:
+
+```text
+import "library" as lib
+import "library" as ...
+import "library"
+
+import "library" as lib without {Cs, Vs, As}
+import "library" as lib without {Cs, As, Ls}
+import "library" as lib without {As, Vs, Ls}
+import "library" as ... without {Cs}
+import "library" as ... without {Vs}
+import "library" as ... without {As}
+import "library" as ... without {Ls}
+
+import "library" without {Cs, Vs, As}
+import "library" without {Cs, As, Ls}
+import "library" without {As, Vs, Ls}
+import "library" without {Cs}
+import "library" without {Vs}
+import "library" without {As}
+import "library" without {Ls}
+
+from "library" import {Cs} without {Vs, As, Ls}
+from "library" import {Vs} without {As, Cs, Ls}
+from "library" import {As} without {Ls}
+from "library" import {Ls} without {Cs}
+
+from "library" as lib import {Cs} without {Vs, As, Ls}
+from "library" as lib import {Vs} without {As, Cs, Ls}
+from "library" as ... import {As} without {Ls}
+from "library" as ... import {Ls} without {Cs}
+
+from "library" as lib import {Cs}
+from "library" as lib import {Vs}
+from "library" as ... import {As}
+from "library" as ... import {Ls}
+
+from "library" import {C.apples} without {Cs, Vs, As}
+from "library" import {V.banana} without {Ls, As, Vs}
+from "library" import {A.orange} without {Cs}
+from "library" import {L.cherry} without {Vs}
+
+from "library" import {C.apples, function}
+from "library" import {V.banana, function}
+from "library" import {A.orange}
+from "library" import {L.cherry}
+
+from "library" import {function, function}
+from "library" import {function}
+
+from "library" import {function} without! {dependency}
+from "library" import {function} without {dependency}
+
+# ................................
+; ................................
+
+\\\
+
+using Align of 0
+using Balig of 0
+using Linux
+
+V.apples: [B] = [0, 1, 2, 3]
+V.banana: [H] = [2;4 .. 100]
+V.orange: [W] = [1 .. 5]
+V.cherry: [D] = [0 ** 3]
+V.apples: [F] = [4.2, 1.337]
+
+V.apples: S   = "................"
+V.banana: R   = '................'
+
+V.apples: S   = "..." ** 42
+V.banana: R   = '...' ** 42
+
+C.apples: B   = {}
+C.banana: H   = {}
+C.orange: W   = {}
+C.cherry: D   = {}
+C.apples: F   = {}
+
+C.banana: S   = {}
+C.orange: R   = {}
+
+C.apples: [B] = {}
+C.banana: [H] = {}
+C.orange: [W] = {}
+C.cherry: [D] = {}
+C.apples: [F] = {}
+
+C.apples: B   = B^+
+C.banana: H   = H^+
+C.orange: W   = W^+
+C.cherry: D   = D^+
+C.apples: F   = F^+
+
+C.apples: B   = B^-
+C.banana: H   = H^-
+C.orange: W   = W^-
+C.cherry: D   = D^-
+C.apples: F   = F^-
+
+A.apples: `x  = x
+A.banana: `t  = t
+A.orange: `f  = f
+
+lib::C.apples: [B] = 42
+lib::C.banana: [H] = 42
+lib::C.orange: [W] = 42
+lib::C.cherry: [D] = 42
+lib::C.apples: [F] = 42.0
+
+lib::function (dependency)
+{
+    ....................
+    ....................
+    @dependency
+}
+
+lib::function
+{
+    ....................
+    ....................
+    @dependency
+}
+
+function (dependency)
+{
+    ....................
+    ....................
+    @dependency
+}
+
+=> lib::function
+
+=> function
+{
+    |B| A.reg -> |||
+    |H| A.reg <- |||
+    |W| A.reg <? |||
+    128 A.reg <- |||
+
+    if V.var == {[B]}: @good
+    if V.var != {[H]}: @good
+    if V.var >= {[W]}: @good
+    if V.var <= {[D]}: @good
+    if V.var == {[F]}: @good
+
+    if V.var == {B}: @good
+    if V.var != {H}: @good
+    if V.var >= {W}: @good
+    if V.var <= {D}: @good
+    if V.var == {F}: @good
+
+    if V.var == {S}: @good
+    if V.var != {R}: @good
+
+    if V.var > V.var: @good
+    @bad
+
+    if V.var < V.var: @good
+    @bad
+
+    !! ....................
+}
+
+!! function
+{
+    ....................
+    ....................
+    ....................
+}
+
+## function
+{
+    A.reg = A.reg + A.reg
+    A.reg = A.reg - A.reg
+    A.reg = A.reg * A.reg
+    A.reg = A.reg / A.reg
+    A.reg = A.reg % A.reg
+
+    A.reg = A.reg & A.reg
+    A.reg = A.reg | A.reg
+    A.reg = A.reg ^ A.reg
+
+    A.reg = ~A.reg
+
+    A.reg = A.reg >> A.reg
+    A.reg = A.reg << A.reg
+}
+
+## function
+{
+    A.reg = A.reg +. A.reg
+    A.reg = A.reg -. A.reg
+    A.reg = A.reg *. A.reg
+    A.reg = A.reg /. A.reg
+    A.reg = A.reg %. A.reg
+}
+
+## function
+{
+    A.reg = A.reg + (B)A.reg
+    A.reg = A.reg - (H)A.reg
+    A.reg = A.reg * (W)A.reg
+    A.reg = A.reg / (D)A.reg
+    A.reg = A.reg % (B)A.reg
+
+    A.reg = (B)A.reg & A.reg
+    A.reg = (H)A.reg | A.reg
+    A.reg = (W)A.reg ^ A.reg
+
+    A.reg = ~(B)A.reg
+
+    A.reg = (B)A.reg >> (B)A.reg
+    A.reg = (H)A.reg << (H)A.reg
+}
+
+## function
+{
+    A.reg = A.reg +. (F)A.reg
+    A.reg = A.reg -. (F)A.reg
+    A.reg = A.reg *. (F)A.reg
+    A.reg = A.reg /. (F)A.reg
+    A.reg = A.reg %. (F)A.reg
+
+    A.reg = (F)A.reg +. A.reg
+    A.reg = (F)A.reg -. A.reg
+    A.reg = (F)A.reg *. A.reg
+
+    A.reg = (F)A.reg +. (F)A.reg
+    A.reg = (F)A.reg /. (F)A.reg
+    A.reg = (F)A.reg %. (F)A.reg
+}
+
+function
+{
+    A.reg^^
+    A.reg++
+    A.reg--
+    A.reg~~
+}
+
+function
+{
+    A.reg += A.reg
+    A.reg -= A.reg
+    A.reg *= A.reg
+    A.reg /= A.reg
+    A.reg %= A.reg
+
+    A.reg &= A.reg
+    A.reg |= A.reg
+    A.reg ^= A.reg
+
+    A.reg <> A.reg
+}
+
+function
+{
+    A.reg +.= A.reg
+    A.reg -.= A.reg
+    A.reg *.= A.reg
+    A.reg /.= A.reg
+    A.reg %.= A.reg    
+}
+
+function
+{
+    |B| A.reg ~> C.pointer ? @function
+    |H| A.reg ~> C.pointer ? @function
+    |W| A.reg ~> C.pointer ? @.
+    128 A.reg ~> C.pointer ? @.
+}
+
+function
+{
+    () V.var -> V.var
+    $$ V.var
+    <- V.var
+}
+
+function
+{
+    |B| A.reg <~ C.pointer
+    |H| A.reg <~ C.pointer
+    128 A.reg <~ C.pointer    
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    <- lib::V.var
+}
+
+()
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    <- lib::V.var
+}
+
+() 42
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    <- lib::V.var
+}
+
+<-
+{
+    ....................
+    ....................
+    ....................
+}
+
+() 37
+{
+    ....................
+    ....................
+    ....................
+}
+
+() 42
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    <- lib::V.var
+}
+
+<-
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    <- lib::V.var
+}
+
+<- 0
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    <- lib::V.var
+}
+
+<- 0
+{
+    ....................
+    ....................
+    ....................
+}
+
+<- 1
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    ><
+}
+
+><
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    >fixme<
+}
+
+>< fixme
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    >fixme<
+}
+
+><
+{
+    ....................
+    ....................
+    ....................
+}
+
+>< fixme
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    []
+}
+
+[]
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    [fixme]
+}
+
+[] fixme
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+import "library" as lib
+
+=> function
+{
+    if lib::V.var < lib::V.var: @good
+    @bad
+    if lib::V.var > lib::V.var: @good
+    [fixme]
+}
+
+[]
+{
+    ....................
+    ....................
+    ....................
+}
+
+[] fixme
+{
+    ....................
+    ....................
+    ....................
+}
+
+# ................................................................
+
+from "library" as lib import {C.apples, V.banana, function}
+
+=> function
+{
+    if lib::C.apples == lib::V.banana: @good
+    @bad
+
+    @lib::function
+}
+
+# ................................................................
+
+from "library" as ... import {C.apples, V.banana, function}
+
+=> function
+{
+    if C.apples == V.banana: @good
+    @bad
+
+    @function
+}
+
+# ................................................................
+
+from "library" import {C.apples, V.banana, function}
+
+=> function
+{
+    if library::C.apples == library::V.banana: @good
+    @bad
+
+    @library::function
+}
+
+# ................................................................
+
+=> function
+{
+    if V.apples == V.banana: <- 0
+    <- 1
+
+    if V.apples != V.banana: <-
+    @function
+}
+
+# ................................................................
+
+=> function
+{
+    if V.apples == V.banana: >fixme<
+    >bug<
+
+    if V.apples != V.banana: ><
+    @function
+}
+
+# ................................................................
+
+=> function
+{
+    if V.apples == V.banana: [fixme]
+    [bug]
+
+    if V.apples != V.banana: []
+    @function
+}
+
+# ................................................................
+```
+
+The broader design includes selective imports, array and string declarations, typed register operations, and new memory and control-flow forms. Migration will require updating v1.1 source to the new language.
+
+</details>
+
